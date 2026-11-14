@@ -707,6 +707,39 @@ def run_self_check() -> None:
     print(f"[SELF-CHECK OK | {cfg.model_version}] Verified {len(answers)} recs in {elapsed_ms:.1f} ms")
 
 
+def run_train_only(cfg: ConfigV4) -> None:
+    """Train fresh snapshot (EASE, Cold-Start, Bandit, IPS ML Re-Ranker) to disk cache and exit."""
+    if not cfg.team_id or not cfg.api_key:
+        raise SystemExit("TEAM_ID i RAWTREE_API_KEY són obligatoris per entrenar des de RawTree.")
+    t0 = time.perf_counter()
+    client = RawTreeClient(api_url=cfg.api_url, api_key=cfg.api_key, team_id=cfg.team_id)
+    cache = DiskCache(cfg.resolve_cache_dir())
+    store = StateStore()
+    updater = Stage4BackgroundUpdater(
+        client=client,
+        store=store,
+        config=cfg,
+        cache=cache,
+        stop_event=threading.Event(),
+    )
+    updater.refresh_live_and_model(force_static=True)
+    snap = store.get()
+    if snap is None:
+        raise RuntimeError("Training completed without producing a snapshot.")
+    logger.info(
+        "[TRAIN-ONLY OK | %s] Snapshot v%d trained in %.2fs | active=%d | ml_alpha=%.3f",
+        cfg.model_version,
+        snap.version,
+        time.perf_counter() - t0,
+        len(snap.active_ids),
+        snap.ranker.ml_blend_alpha if snap.ranker else 0.0,
+    )
+    print(
+        f"[TRAIN-ONLY OK | {cfg.model_version}] Trained & cached snapshot v{snap.version} "
+        f"with {len(snap.active_ids)} active products"
+    )
+
+
 def run_watchdog(pass_through_args: list[str]) -> None:
     """Supervise child worker process and restart within 1s after any crash."""
     cmd = [sys.executable, str(Path(__file__).resolve()), *pass_through_args]
@@ -724,6 +757,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Calypso 3.1 Encapsulated Real-Time Recommender Service")
     parser.add_argument("--self-check", action="store_true", help="Run fast pre-flight verification and exit")
     parser.add_argument("--dry-run", action="store_true", help="Run local dry-run with disk cache")
+    parser.add_argument("--train-only", action="store_true", help="Train fresh snapshot + ML ranker + EASE to disk cache and exit")
+    parser.add_argument("--force-retrain", action="store_true", help="Ignore existing disk snapshot on boot and build fresh")
     parser.add_argument("--watchdog", action="store_true", help="Run auto-restarting supervisor loop")
     parser.add_argument("--model-version", type=str, default="", help="Override model_version label")
     parser.add_argument("--poll-interval", type=float, default=0.12, help="Fast-loop poll seconds")
@@ -761,6 +796,11 @@ def main() -> None:
         stock_refresh_interval_s=args.stock_interval,
         live_refresh_interval_s=args.live_interval,
     )
+
+    if args.train_only:
+        run_train_only(cfg)
+        return
+
     if not cfg.team_id or not cfg.api_key:
         raise SystemExit(
             "TEAM_ID i RAWTREE_API_KEY són obligatoris al .env o group_API.env. "
@@ -796,6 +836,8 @@ def main() -> None:
 
     client = RawTreeClient(api_url=cfg.api_url, api_key=cfg.api_key, team_id=cfg.team_id)
     cache = DiskCache(cache_dir)
+    if args.force_retrain and cache.snapshot_path.is_file():
+        cache.snapshot_path.unlink(missing_ok=True)
     boot_snap = build_bootstrap_snapshot(client, cfg, cache)
     store = StateStore(boot_snap)
     stop_event = threading.Event()

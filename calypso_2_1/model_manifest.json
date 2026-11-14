@@ -1,0 +1,13 @@
+{
+  "name": "calypso 2.1",
+  "model_version": "calypso-2.1",
+  "folder": "calypso_2_1",
+  "entrypoint": "serve.py",
+  "monitor": "monitor.py",
+  "eval": "eval.py",
+  "self_check_args": ["--self-check"],
+  "train_args": ["--train-only"],
+  "heartbeat_file": "cache/heartbeat.json",
+  "log_file": "logs/live.log",
+  "description": "Unified 4-Stage Calypso 2.1 (Hybrid + Sequential Lift/MMR + IPS Re-Ranker/Bandit/Agent + Slot-Gated DiskCache SLA)"
+}
