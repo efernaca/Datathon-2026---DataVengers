@@ -1,7 +1,7 @@
 """Deterministic submission guardrails: 10 distinct active product IDs, zero duplicates."""
 from __future__ import annotations
 
-from collections.abc import AbstractSet, Sequence
+from collections.abc import Sequence, Set as AbstractSet
 from typing import Any
 
 NUM_SLOTS = 10
