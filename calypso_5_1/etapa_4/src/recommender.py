@@ -987,32 +987,38 @@ class CalypsoRecommenderV4:
             for pid, _ in snapshot.user_recurrent.get(uid, ())[:4]:
                 _add(pid)
 
-        # 3. User intent items
+        # 3. Co-views / transitions and bidirectional cold-start neighbors (capped so Top-N always fits)
+        trans_cap = max(pool_limit - guaranteed_top - 8, 48)
+        for seen_pid in reversed(recent_views):
+            if len(candidates) >= trans_cap:
+                break
+            for dst_pid, _ in snapshot.transitions.get(seen_pid, ()):
+                if len(candidates) >= trans_cap:
+                    break
+                _add(dst_pid)
+            for new_pid, _ in snapshot.reverse_cold_neighbors.get(seen_pid, ()):
+                if len(candidates) >= trans_cap:
+                    break
+                _add(new_pid)
+            for warm_nb, _ in snapshot.cold_neighbors.get(seen_pid, ()):
+                if len(candidates) >= trans_cap:
+                    break
+                _add(warm_nb)
+                for dst_pid, _ in snapshot.transitions.get(warm_nb, ())[:5]:
+                    if len(candidates) >= trans_cap:
+                        break
+                    _add(dst_pid)
+
+        # 4. User intent items & guaranteed Top-N bestsellers (D3/R5)
         profile = None if is_new_user else snapshot.user_profiles.get(uid)
         if profile is not None:
             for pid, _ in profile.intent_items:
                 _add(pid)
 
-        # 4. Reserve Top-N bestsellers & top contextual items BEFORE transitions (D3/R5)
         for pid in snapshot.fallback_ranked[:guaranteed_top]:
             _add(pid)
-        for pid, _ in snapshot.ctx_3.get((region, device, page), ())[:12]:
-            _add(pid)
-        for pid, _ in snapshot.ctx_2.get((region, device), ())[:8]:
-            _add(pid)
 
-        # 5. Co-views / transitions and bidirectional cold-start neighbors
-        for seen_pid in reversed(recent_views):
-            for dst_pid, _ in snapshot.transitions.get(seen_pid, ()):
-                _add(dst_pid)
-            for new_pid, _ in snapshot.reverse_cold_neighbors.get(seen_pid, ()):
-                _add(new_pid)
-            for warm_nb, _ in snapshot.cold_neighbors.get(seen_pid, ()):
-                _add(warm_nb)
-                for dst_pid, _ in snapshot.transitions.get(warm_nb, ())[:5]:
-                    _add(dst_pid)
-
-        # 6. Remaining context buckets & new items
+        # 5. Contextual buckets & new items
         for pid, _ in snapshot.ctx_3.get((region, device, page), ())[:18]:
             _add(pid)
         for pid, _ in snapshot.ctx_2.get((region, device), ())[:12]:
@@ -1189,19 +1195,22 @@ class CalypsoRecommenderV4:
         cart_bonus_map: dict[str, float] = {}
         rec_bonus_map: dict[str, float] = {}
         if uid and not is_new_user:
-            cur_ms = time.time() * 1000.0 if now_ms is None else now_ms
-            active_ms = cfg.v4_cart_active_minutes * 60_000.0
-            max_forgot_ms = cfg.v4_forgotten_max_days * 86_400_000.0
-            for c_pid, cart_ts in snapshot.user_carts.get(uid, ()):
-                age_ms = max(cur_ms - cart_ts, 0.0)
-                if age_ms <= active_ms:
-                    if wp.cart_active_score_bonus > 0.0:
-                        cart_bonus_map[c_pid] = wp.cart_active_score_bonus
-                elif age_ms <= max_forgot_ms and wp.cart_forgotten_score_bonus > 0.0:
-                    age_days = age_ms / 86_400_000.0
-                    cart_bonus_map[c_pid] = wp.cart_forgotten_score_bonus * math.exp(-age_days / 7.0)
-            if wp.recurrent_score_bonus > 0.0:
-                for r_pid, n_buys in snapshot.user_recurrent.get(uid, ()):
+            u_carts = snapshot.user_carts.get(uid)
+            if u_carts:
+                cur_ms = time.time() * 1000.0 if now_ms is None else now_ms
+                active_ms = cfg.v4_cart_active_minutes * 60_000.0
+                max_forgot_ms = cfg.v4_forgotten_max_days * 86_400_000.0
+                for c_pid, cart_ts in u_carts:
+                    age_ms = max(cur_ms - cart_ts, 0.0)
+                    if age_ms <= active_ms:
+                        if wp.cart_active_score_bonus > 0.0:
+                            cart_bonus_map[c_pid] = wp.cart_active_score_bonus
+                    elif age_ms <= max_forgot_ms and wp.cart_forgotten_score_bonus > 0.0:
+                        age_days = age_ms / 86_400_000.0
+                        cart_bonus_map[c_pid] = wp.cart_forgotten_score_bonus * math.exp(-age_days / 7.0)
+            u_rec = snapshot.user_recurrent.get(uid)
+            if u_rec and wp.recurrent_score_bonus > 0.0:
+                for r_pid, n_buys in u_rec:
                     if n_buys >= cfg.v4_recurrent_min_purchases:
                         rec_bonus_map[r_pid] = wp.recurrent_score_bonus
 
@@ -1368,7 +1377,7 @@ class CalypsoRecommenderV4:
         tie_eps = wp.tie_break_eps
         new_picked_count = 0
         tie_mode = wp.tie_break_mode
-        slot_vals = [-1e18] * n_cands
+        use_eps_tie = tie_eps > 0.0 and tie_mode in ("cheap", "revenue")
 
         target_k = min(k, n_cands)
         while len(selected) < target_k:
@@ -1382,9 +1391,10 @@ class CalypsoRecommenderV4:
             best_idx = -1
             best_val = -1e18
             best_tie = -1e18
+            anchor_val = -1e18
+            anchor_sc = ""
             for idx in range(n_cands):
                 if picked[idx]:
-                    slot_vals[idx] = -1e18
                     continue
                 is_n = cand_is_new[idx]
                 confirmed_cold = cand_confirmed_cold[idx]
@@ -1397,7 +1407,6 @@ class CalypsoRecommenderV4:
                         and new_picked_count < max_cold_warm
                     )
                 ):
-                    slot_vals[idx] = -1e18
                     continue
                 val = full_scores[idx] if (allow_ucb or confirmed_cold) else prec_scores[idx]
                 if apply_slot1_cat:
@@ -1426,24 +1435,43 @@ class CalypsoRecommenderV4:
                             val -= subcat_lam * subcat_counts[sc]
                         if br and brand_lam > 0.0:
                             val -= brand_lam * brand_counts[br]
-                slot_vals[idx] = val
                 tie_val = -cand_lp[idx] if tie_mode == "cheap" else (cand_lp[idx] if tie_mode == "revenue" else 0.0)
-                if val > best_val + 1e-9 or (abs(val - best_val) <= 1e-9 and tie_val > best_tie):
+                idx_sc = cand_subcats[idx]
+                if best_idx < 0:
+                    best_idx = idx
                     best_val = val
                     best_tie = tie_val
-                    best_idx = idx
-
-            if best_idx >= 0 and tie_mode in ("cheap", "revenue") and tie_eps > 0.0 and cand_subcats[best_idx]:
-                eps_tol = max(1e-9, tie_eps * abs(best_val))
-                target_sc = cand_subcats[best_idx]
-                for idx in range(n_cands):
-                    sv = slot_vals[idx]
-                    if sv <= -1e17 or cand_subcats[idx] != target_sc or sv < best_val - eps_tol:
-                        continue
-                    t_val = -cand_lp[idx] if tie_mode == "cheap" else cand_lp[idx]
-                    if t_val > best_tie + 1e-12 or (abs(t_val - best_tie) <= 1e-12 and sv > slot_vals[best_idx]):
-                        best_tie = t_val
+                    anchor_val = val
+                    anchor_sc = idx_sc
+                elif val > anchor_val + 1e-9:
+                    eps_tol = max(1e-9, tie_eps * abs(val)) if use_eps_tie else 0.0
+                    if (
+                        use_eps_tie
+                        and anchor_sc
+                        and idx_sc == anchor_sc
+                        and best_val >= val - eps_tol
+                        and best_tie > tie_val + 1e-9
+                    ):
+                        anchor_val = val
+                    else:
                         best_idx = idx
+                        best_val = val
+                        best_tie = tie_val
+                        anchor_val = val
+                        anchor_sc = idx_sc
+                elif use_eps_tie and anchor_sc and idx_sc == anchor_sc:
+                    eps_tol = max(1e-9, tie_eps * abs(anchor_val))
+                    if val >= anchor_val - eps_tol and (
+                        tie_val > best_tie + 1e-9 or (abs(tie_val - best_tie) <= 1e-9 and val > best_val)
+                    ):
+                        best_idx = idx
+                        best_val = val
+                        best_tie = tie_val
+                elif abs(val - anchor_val) <= 1e-9 and tie_val > best_tie:
+                    best_idx = idx
+                    best_val = val
+                    best_tie = tie_val
+                    anchor_sc = idx_sc
 
             if best_idx < 0:
                 # Fallback if only cold items remain and cap was reached

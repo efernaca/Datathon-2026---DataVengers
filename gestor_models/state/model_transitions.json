@@ -82,5 +82,19 @@
     "elapsed_s": 93.8,
     "status": "ok",
     "detail": "Heartbeat llest (PID 16808, snapshot v1)"
+  },
+  {
+    "ts": "2026-11-14T21:07:06+00:00",
+    "action": "train_and_activate",
+    "from_folders": [
+      "calypso_4_1_e"
+    ],
+    "to_folder": "calypso_4_2",
+    "model_version": "calypso-4.2",
+    "pid": 15336,
+    "stopped_pids": [],
+    "elapsed_s": 124.2,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 15336, snapshot v1)"
   }
 ]

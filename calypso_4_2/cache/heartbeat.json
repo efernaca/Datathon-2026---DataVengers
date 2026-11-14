@@ -1,0 +1,16 @@
+{
+  "pid": 15336,
+  "model_name": "calypso 4.2",
+  "model_version": "calypso-4.2",
+  "folder": "calypso_4_2",
+  "profile": "medidas_conversion",
+  "started_at": 1794690416.083774,
+  "last_heartbeat_ts": 1794690664.727399,
+  "ready": true,
+  "snapshot_version": 15,
+  "active_products": 5263,
+  "ml_alpha": 0.0913,
+  "regime": "cold_surge",
+  "submitted_total": 726,
+  "last_batch_size": 6
+}

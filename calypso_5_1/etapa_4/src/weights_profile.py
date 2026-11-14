@@ -43,23 +43,23 @@ class WeightsProfile:
 
     # Identification
     profile_name: str = "conversion_first"
-    description: str = "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 140 amb Top-35 vendes D3, cold-start X10, carret/recurrents per puntuació M6)."
+    description: str = "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 84 amb Top-14 vendes D3, cold-start X10, carret/recurrents per puntuació M6)."
 
     # 14 Prior Weights matching FEATURE_NAMES order
     w_seq_lift: float = 1.15
-    w_self_cvr_view: float = 2.15
-    w_intent_score: float = 0.65
-    w_user_affinity: float = 0.34
+    w_self_cvr_view: float = 2.10
+    w_intent_score: float = 0.62
+    w_user_affinity: float = 0.42
     w_price_compat: float = 0.22
     w_ctx_bayes: float = 0.36
-    w_global_pop: float = 0.56
-    w_live_trend: float = 0.36
+    w_global_pop: float = 0.44
+    w_live_trend: float = 0.32
     w_is_new_product: float = 0.03
     w_reverse_graft: float = 0.35
     w_forward_cold: float = 0.50
     w_log_price_norm: float = 0.00
-    w_same_top_subcat: float = 0.22
-    w_same_top_brand: float = 0.08
+    w_same_top_subcat: float = 0.20
+    w_same_top_brand: float = 0.10
 
     # ML anchoring ratios
     min_prior_ratios: tuple[float, ...] = (
@@ -93,7 +93,7 @@ class WeightsProfile:
     price_cheap_asymmetry: float = 0.0
     revenue_tie_weight: float = 0.0
     tie_break_mode: str = "conversion"  # "conversion" | "cheap" | "revenue"
-    tie_break_eps: float = 0.015
+    tie_break_eps: float = 0.012
 
     # Product profile & Cold-Start levers
     cold_sparse_cos_weight: float = 0.65
@@ -110,17 +110,17 @@ class WeightsProfile:
     cold_neighbor_pop_prior_weight: float = 0.80
 
     # Stage 5.1 Base-Rate, Candidate Pool & Conversion Signals
-    candidate_pool_size: int = 140
-    guaranteed_top_sellers_in_pool: int = 35
+    candidate_pool_size: int = 84
+    guaranteed_top_sellers_in_pool: int = 14
     use_sales_rank_base_rate: bool = True
-    sales_rank_blend_weight: float = 0.68
+    sales_rank_blend_weight: float = 0.32
     live_pop_mix_weight: float = 0.45
-    transition_dest_pop_gamma: float = 0.50
+    transition_dest_pop_gamma: float = 0.20
     view_last_product_page_factor: float = 1.0
-    view_base_bonus: float = 0.55
-    recency_decay: float = 0.72
-    slot1_category_match_bonus: float = 0.20
-    same_cat_bonus_weight: float = 0.08
+    view_base_bonus: float = 0.52
+    recency_decay: float = 0.70
+    slot1_category_match_bonus: float = 0.18
+    same_cat_bonus_weight: float = 0.06
     cart_active_score_bonus: float = 0.95
     cart_forgotten_score_bonus: float = 0.35
     recurrent_score_bonus: float = 0.25
@@ -146,15 +146,15 @@ class WeightsProfile:
     mmr_start_slot_session: int = 5
     mmr_start_slot_home: int = 3
     mmr_subcat_lambda_session: float = 0.0
-    mmr_subcat_lambda_home: float = 0.0
-    mmr_brand_lambda: float = 0.02
+    mmr_subcat_lambda_home: float = 0.06
+    mmr_brand_lambda: float = 0.03
     mmr_relative_penalty: bool = True
     subcat_floor_min: float = 0.28
     brand_floor_min: float = 0.12
     v3_no_subcat_floor: bool = False
     v3_bg_penalty: bool = True
-    bg_penalty_diff_subcat: float = 0.48
-    bg_penalty_same_subcat: float = 0.85
+    bg_penalty_diff_subcat: float = 0.25
+    bg_penalty_same_subcat: float = 0.75
     v3_ease_weight: float = 0.0
 
     # Stage 4.1 / 5.1 Business rules

@@ -1,10 +1,10 @@
 {
   "state": "completed",
   "action": "train_and_activate",
-  "target_folder": "calypso_4_1_e",
-  "target_name": "calypso 4.1.e",
+  "target_folder": "calypso_4_2",
+  "target_name": "calypso 4.2",
   "progress": 100,
-  "message": "Model 'calypso_4_1_e' (calypso-4.1e) actiu amb PID 16808 en 93.8s (Heartbeat llest (PID 16808, snapshot v1)). Aturats: cap.",
-  "started_at": 1794688815.9087267,
-  "updated_at": 1794688909.79983
+  "message": "Model 'calypso_4_2' (calypso-4.2) actiu amb PID 15336 en 124.2s (Heartbeat llest (PID 15336, snapshot v1)). Aturats: cap.",
+  "started_at": 1794690302.6907346,
+  "updated_at": 1794690426.968012
 }

@@ -170,15 +170,18 @@ class TestModularWeightsProfile(unittest.TestCase):
         snap, _ = build_snapshot_v4_from_records(**records, config=cfg, weights_profile=wp)
         rec = CalypsoRecommenderV4(cfg)
 
-        # (D3) Pool >= 120 and Top-35 bestsellers preserved even with multiple recent_views
+        # (D3) Pool >= 80 and Top-N bestsellers preserved even with multiple recent_views
         warm_pool = [pid for pid in snap.fallback_ranked if pid not in snap.new_product_ids]
         rv = warm_pool[40:44] if len(warm_pool) > 44 else warm_pool[:3]
         cands = rec._gather_candidates(("u_x", False, "Madrid", "web", "product", rv), snap, frozenset())
-        self.assertGreaterEqual(cfg.candidate_pool_size, 120)
-        self.assertGreaterEqual(len(cands), 120)
+        self.assertGreaterEqual(cfg.candidate_pool_size, 80)
+        self.assertGreaterEqual(wp.guaranteed_top_sellers_in_pool, 12)
+        self.assertGreaterEqual(len(cands), 80)
         cands_set = set(cands)
-        expected_top35 = [pid for pid in snap.fallback_ranked[:35] if pid in snap.active_ids]
-        for pid in expected_top35:
+        expected_top = [
+            pid for pid in snap.fallback_ranked[: wp.guaranteed_top_sellers_in_pool] if pid in snap.active_ids
+        ]
+        for pid in expected_top:
             self.assertIn(pid, cands_set)
 
         # (D6) Last viewed item on product page receives no 0.65 attenuation
@@ -201,8 +204,8 @@ class TestModularWeightsProfile(unittest.TestCase):
         bandit_emp = PositionAwareBandit(use_empirical_exam_curve=wp.use_empirical_exam_curve)
         self.assertEqual(bandit_emp.exam_weights, EMPIRICAL_SLOT_WEIGHTS)
 
-        # (M7) No forced subcategory MMR diversification on home page
-        self.assertEqual(wp.mmr_subcat_lambda_home, 0.0)
+        # (M7) Softened subcategory MMR diversification on home page (<= 0.08)
+        self.assertLessEqual(wp.mmr_subcat_lambda_home, 0.08)
 
 
 if __name__ == "__main__":
