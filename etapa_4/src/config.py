@@ -84,7 +84,7 @@ class ConfigV4:
     bandit_ucb_alpha: float = 0.14
     bandit_cold_ucb_multiplier: float = 1.8
     bandit_exam_power: float = 0.75
-    cold_explore_start_slot_warm: int = 5
+    cold_explore_start_slot_warm: int = 7
     max_cold_explore_in_warm: int = 2
 
     # Diversity / MMR guardrails

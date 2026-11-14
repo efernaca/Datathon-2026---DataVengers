@@ -155,16 +155,16 @@ LIMIT 200
 """
 
 SQL_HISTORY_SESSIONS_TRAIN = """
-SELECT session_id::String AS request_id,
+SELECT request_id::String AS request_id,
        user_id::String AS user_id,
-       is_new_user::Bool AS is_new_user,
+       false AS is_new_user,
        context.region::String AS region,
        context.device::String AS device,
        context.page::String AS page,
        recent_views,
        shown,
-       clicked::String AS clicked,
-       purchased::String AS purchased
+       ifNull(clicked::String, '') AS clicked,
+       ifNull(purchased::String, '') AS purchased
 FROM shop.history_sessions
 WHERE length(shown) >= 10
 LIMIT 3000

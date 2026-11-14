@@ -11,3 +11,7 @@ material_obsolet/
 # Etapa 1 versión especial
 etapa_1_version_especial/cache/
 etapa_1_version_especial/logs/
+
+# Etapa 4 cache i logs en temps d'execució
+etapa_4/cache/
+etapa_4/logs/

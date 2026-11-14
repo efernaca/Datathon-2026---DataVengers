@@ -2,16 +2,15 @@
 -- Etapa 4 · Consultes SQL Separades: Històric Estàtic vs. Fast/Live & Monitor
 -- =============================================================================
 
--- [FAST-POLL] Petites finestres SLA-strictes (< 2400 ms d'edat, les més antigues primer)
+-- [FAST-POLL] Petites finestres SLA-strictes (2400 ms respecte al cap de stream, tolerant a clock skew)
 SELECT
     request_id,
     user_id,
     is_new_user,
     context,
-    recent_views,
-    dateDiff('millisecond', ts::DateTime64(3), now64(3)) AS age_ms
+    recent_views
 FROM shop.requests
-WHERE ts::DateTime64(3) >= now64(3) - INTERVAL 2400 MILLISECOND
+WHERE ts::DateTime64(3) >= (SELECT max(ts::DateTime64(3)) FROM shop.requests) - INTERVAL 2400 MILLISECOND
 ORDER BY ts ASC
 LIMIT 25;
 
