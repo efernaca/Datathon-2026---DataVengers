@@ -16,7 +16,18 @@ if TYPE_CHECKING:
 class ColdStartIndexV4:
     """Computes forward (cold/sparse -> warm) and reverse (warm -> new_product) maps."""
 
-    def __init__(self, max_features: int = 4096, svd_dim: int = 64) -> None:
+    def __init__(
+        self,
+        max_features: int = 4096,
+        svd_dim: int = 64,
+        *,
+        sparse_cos_weight: float = 0.65,
+        dense_svd_weight: float = 0.35,
+        subcat_match_bonus: float = 0.35,
+        cat_match_bonus: float = 0.15,
+        brand_match_bonus: float = 0.12,
+        price_prox_bonus: float = 0.15,
+    ) -> None:
         self.vectorizer = TfidfVectorizer(
             max_features=max_features,
             ngram_range=(1, 2),
@@ -24,6 +35,12 @@ class ColdStartIndexV4:
             sublinear_tf=True,
         )
         self.svd_dim = svd_dim
+        self.sparse_cos_weight = float(sparse_cos_weight)
+        self.dense_svd_weight = float(dense_svd_weight)
+        self.subcat_match_bonus = float(subcat_match_bonus)
+        self.cat_match_bonus = float(cat_match_bonus)
+        self.brand_match_bonus = float(brand_match_bonus)
+        self.price_prox_bonus = float(price_prox_bonus)
         self._svd: TruncatedSVD | None = None
         self._warm_ids: list[str] = []
         self._warm_sparse: Any = None
@@ -96,18 +113,18 @@ class ColdStartIndexV4:
         if self._warm_dense is not None:
             q_dense = self._encode_dense(q_sparse)
             dense_cos = np.clip(q_dense @ self._warm_dense.T, 0.0, 1.0)
-            sim = 0.65 * sparse_cos + 0.35 * dense_cos
+            sim = self.sparse_cos_weight * sparse_cos + self.dense_svd_weight * dense_cos
         else:
             sim = sparse_cos
 
         for idx, p in enumerate(targets):
             row = sim[idx]
-            row += 0.35 * (self._warm_subcats == p.subcategory)
-            row += 0.15 * (self._warm_cats == p.category)
+            row += self.subcat_match_bonus * (self._warm_subcats == p.subcategory)
+            row += self.cat_match_bonus * (self._warm_cats == p.category)
             if p.brand:
-                row += 0.12 * (self._warm_brands == p.brand)
+                row += self.brand_match_bonus * (self._warm_brands == p.brand)
             q_log_p = float(np.log1p(max(p.price_eur, 0.0)))
-            row += 0.15 * np.exp(-np.abs(self._warm_log_prices - q_log_p))
+            row += self.price_prox_bonus * np.exp(-np.abs(self._warm_log_prices - q_log_p))
 
         return sim
 

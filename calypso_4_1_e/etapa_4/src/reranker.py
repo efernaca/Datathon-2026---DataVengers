@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -71,7 +71,7 @@ _MIN_PRIOR_RATIO = np.array(
 
 @dataclass(slots=True)
 class PositionDebiasedRanker:
-    """Blend of IPS-weighted LogisticRegression and monotonic domain priors."""
+    """Blend of IPS-weighted LogisticRegression and domain priors (signed-weight safe)."""
 
     prior_weights: np.ndarray
     effective_weights: np.ndarray
@@ -79,10 +79,21 @@ class PositionDebiasedRanker:
     ml_blend_alpha: float = 0.0
     train_samples: int = 0
     positive_samples: int = 0
+    min_prior_ratios: np.ndarray = field(default_factory=lambda: _MIN_PRIOR_RATIO.copy())
+    max_prior_multiplier: float = 2.2
 
     @classmethod
-    def from_priors(cls, prior_weights: np.ndarray | None = None) -> PositionDebiasedRanker:
+    def from_priors(
+        cls,
+        prior_weights: np.ndarray | None = None,
+        *,
+        min_prior_ratios: np.ndarray | None = None,
+        max_prior_multiplier: float = 2.2,
+    ) -> PositionDebiasedRanker:
         pw = (DEFAULT_PRIOR_WEIGHTS if prior_weights is None else prior_weights).astype(
+            np.float64, copy=True
+        )
+        ratios = (_MIN_PRIOR_RATIO if min_prior_ratios is None else min_prior_ratios).astype(
             np.float64, copy=True
         )
         return cls(
@@ -92,6 +103,8 @@ class PositionDebiasedRanker:
             ml_blend_alpha=0.0,
             train_samples=0,
             positive_samples=0,
+            min_prior_ratios=ratios,
+            max_prior_multiplier=float(max_prior_multiplier),
         )
 
     def fit(
@@ -136,9 +149,26 @@ class PositionDebiasedRanker:
             return self
 
         rescaled_ml = raw_ml * (pos_norm / ml_norm)
-        floors = _MIN_PRIOR_RATIO * self.prior_weights
-        ceilings = np.maximum(self.prior_weights * 2.2, 0.30)
-        stabilized_ml = np.clip(rescaled_ml, floors, ceilings)
+        ratios = (
+            self.min_prior_ratios
+            if len(self.min_prior_ratios) == NUM_FEATURES
+            else _MIN_PRIOR_RATIO
+        )
+        mult = max(float(self.max_prior_multiplier), 1.0)
+        pos_mask = self.prior_weights >= 0.0
+        floors = np.where(
+            pos_mask,
+            ratios * self.prior_weights,
+            np.minimum(self.prior_weights * mult, -0.02),
+        )
+        ceilings = np.where(
+            pos_mask,
+            np.maximum(self.prior_weights * mult, 0.30),
+            ratios * self.prior_weights,
+        )
+        low = np.minimum(floors, ceilings)
+        high = np.maximum(floors, ceilings)
+        stabilized_ml = np.clip(rescaled_ml, low, high)
 
         ramp = min(1.0, max(0.0, (n_pos - min_positives) / 350.0))
         alpha = max_blend_alpha * ramp
@@ -216,6 +246,8 @@ def build_ips_training_dataset(
     exam_power: float = 0.75,
     max_ips_weight: float = 3.5,
     max_sessions: int = 3000,
+    purchase_weight: float = 2.0,
+    click_weight: float = 0.45,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Convert feedback/session impression logs into IPS-weighted (X, y, weights)."""
     feat_rows: list[np.ndarray] = []
@@ -259,11 +291,11 @@ def build_ips_training_dataset(
             if pid == purchased:
                 feat_rows.append(feat_mat[slot_idx])
                 labels.append(1)
-                sample_weights.append(ips_w * 2.0)
-            elif pid == clicked:
+                sample_weights.append(ips_w * purchase_weight)
+            elif pid == clicked and click_weight > 0.0:
                 feat_rows.append(feat_mat[slot_idx])
                 labels.append(1)
-                sample_weights.append(ips_w * 0.45)
+                sample_weights.append(ips_w * click_weight)
             else:
                 feat_rows.append(feat_mat[slot_idx])
                 labels.append(0)

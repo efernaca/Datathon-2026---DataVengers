@@ -40,6 +40,7 @@ from .recommender import (
     extract_recent_product_ids,
 )
 from .state import StaticHistoryBundle
+from .weights_profile import WeightsProfile, get_preset
 
 PolicyFn = Callable[[Any], list[str]]
 
@@ -202,6 +203,7 @@ def generate_synthetic_dataset_v4(
     n_feedback_sessions: int = 1200,
     n_test_sessions: int = 2400,
     config_v4: ConfigV4 | None = None,
+    weights_profile: WeightsProfile | None = None,
 ) -> dict[str, Any]:
     """Generate store records + IPS logs and build V1, V2, V3, V4 snapshots identically."""
     rng = np.random.default_rng(seed)
@@ -584,21 +586,25 @@ def generate_synthetic_dataset_v4(
         config=ConfigV3(),
         version=1,
     )
+    v4_records = {
+        "catalog_rows": catalog_rows,
+        "popularity_rows": popularity_rows,
+        "context_rows": context_rows,
+        "transition_rows": trans_rows_v2,
+        "user_profile_rows": user_profile_rows,
+        "user_intent_rows": user_intent_rows,
+        "user_affinity_rows": user_affinity_rows,
+        "user_bought_rows": user_bought_rows,
+        "live_trend_rows": live_trend_rows,
+        "feedback_rows": feedback_rows,
+        "cart_hist_rows": cart_hist_rows,
+        "live_cart_event_rows": live_cart_event_rows,
+    }
     snap_v4, scratch_v4 = build_snapshot_v4_from_records(
-        catalog_rows,
-        popularity_rows=popularity_rows,
-        context_rows=context_rows,
-        transition_rows=trans_rows_v2,
-        user_profile_rows=user_profile_rows,
-        user_intent_rows=user_intent_rows,
-        user_affinity_rows=user_affinity_rows,
-        user_bought_rows=user_bought_rows,
-        live_trend_rows=live_trend_rows,
-        feedback_rows=feedback_rows,
+        **v4_records,
         config=config_v4 or ConfigV4(),
         version=1,
-        cart_hist_rows=cart_hist_rows,
-        live_cart_event_rows=live_cart_event_rows,
+        weights_profile=weights_profile,
     )
 
     static_bundle = StaticHistoryBundle(
@@ -621,6 +627,7 @@ def generate_synthetic_dataset_v4(
         "snap_v2": snap_v2,
         "snap_v3": snap_v3,
         "snap_v4": snap_v4,
+        "v4_records": v4_records,
         "scratch_payload": scratch_v4,
         "static_bundle": static_bundle,
         "cold_product_ids": frozenset(cold_product_ids),
@@ -631,12 +638,15 @@ def generate_synthetic_dataset_v4(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Stage 4 Offline 5-Way Benchmark")
+    parser = argparse.ArgumentParser(description="Stage 4 Offline 5-Way Benchmark (Calypso 4.1.e)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--out-csv", type=str, default="")
+    parser.add_argument("--preset", type=str, default="", help="Evaluate a specific WeightsProfile preset")
     args = parser.parse_args()
 
-    data = generate_synthetic_dataset_v4(seed=args.seed)
+    wp = get_preset(args.preset) if args.preset else ConfigV4().load_weights_profile()
+    cfg_v4 = ConfigV4.from_profile(wp)
+    data = generate_synthetic_dataset_v4(seed=args.seed, config_v4=cfg_v4, weights_profile=wp)
     df_test = data["df_test"]
     snap_v1 = data["snap_v1"]
     snap_v2 = data["snap_v2"]
@@ -646,7 +656,7 @@ def main() -> None:
     rec_v1 = Stage1Recommender(ConfigV1())
     rec_v2 = Stage2Recommender(ConfigV2())
     rec_v3 = CalypsoRecommender(ConfigV3())
-    rec_v4 = CalypsoRecommenderV4(ConfigV4())
+    rec_v4 = CalypsoRecommenderV4(cfg_v4)
     baseline_top10 = data["baseline_top10"]
 
     def _baseline_policy(row: Any) -> list[str]:
@@ -657,7 +667,7 @@ def main() -> None:
         "etapa1_hybrid": lambda row: rec_v1.recommend(row, snap_v1),
         "etapa2_seq_mmr": lambda row: rec_v2.recommend(row, snap_v2),
         "etapa3_calypso": lambda row: rec_v3.recommend(row, snap_v3),
-        "etapa4_" + ConfigV4().model_version: lambda row: rec_v4.recommend(row, snap_v4),
+        "etapa4_" + cfg_v4.model_version: lambda row: rec_v4.recommend(row, snap_v4),
     }
 
     report = evaluate_stratified(
@@ -670,7 +680,7 @@ def main() -> None:
     pd.set_option("display.max_columns", 20)
     pd.set_option("display.width", 190)
     print(
-        f"=== Stage 4 Benchmark (Unified {ConfigV4().model_version}) | "
+        f"=== Stage 4 Benchmark (Unified {cfg_v4.model_version} · profile={wp.profile_name}) | "
         f"ML alpha={snap_v4.ranker.ml_blend_alpha:.3f} | "
         f"Bandit eff_exp={snap_v4.bandit_state.total_effective_exposures:.1f} | "
         f"Agent regime={snap_v4.agent_overrides.regime} ==="

@@ -121,6 +121,10 @@ class RecommenderSnapshotV4:
     # user_id -> ((product_id, n_compras), ...) con n_compras >= 2, más comprado primero
     user_recurrent: dict[str, tuple[tuple[str, int], ...]] = field(default_factory=dict)
 
+    # 4.1.e · perfil de pesos modular actiu
+    weights_profile: Any = None
+    config_override: Any = None
+
 
 class StateStore:
     """Thread-safe holder enabling zero-lock fast reads and atomic snapshot swaps."""

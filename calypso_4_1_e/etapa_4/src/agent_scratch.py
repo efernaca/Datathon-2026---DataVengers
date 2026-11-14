@@ -38,6 +38,8 @@ class CalypsoAgent:
         feedback_rows: Iterable[Mapping[str, Any]],
         bandit_state: BanditState,
         ranker: PositionDebiasedRanker,
+        *,
+        weights_profile: Any = None,
     ) -> tuple[AgentOverrides, LiveTelemetry, list[dict[str, Any]]]:
         """Analyze live conditions, produce AgentOverrides, and format scratch logs."""
         fb_list = list(feedback_rows)
@@ -79,24 +81,30 @@ class CalypsoAgent:
             total_revenue_eur=revenue_eur,
         )
 
+        base_ucb = weights_profile.bandit_ucb_alpha if weights_profile is not None else config.bandit_ucb_alpha
+        base_rev = weights_profile.w_reverse_graft if weights_profile is not None else config.weight_reverse_cold_graft
+        base_fwd = weights_profile.w_forward_cold if weights_profile is not None else config.weight_forward_cold
+        base_tie = weights_profile.revenue_tie_weight if weights_profile is not None else config.revenue_tie_weight
+        base_brand = weights_profile.mmr_brand_lambda if weights_profile is not None else config.mmr_brand_lambda
+
         ml_scale = 1.0
-        ucb_alpha = config.bandit_ucb_alpha
-        rev_graft_w = config.weight_reverse_cold_graft
-        fwd_cold_w = config.weight_forward_cold
-        rev_tie_w = config.revenue_tie_weight
-        brand_lam = config.mmr_brand_lambda
+        ucb_alpha = base_ucb
+        rev_graft_w = base_rev
+        fwd_cold_w = base_fwd
+        rev_tie_w = base_tie
+        brand_lam = base_brand
         regime = "nominal"
-        reason = "Steady-state Slot-Gated ML + Bandit policy"
+        reason = "Steady-state Modular Slot-Gated ML + Bandit policy"
 
         if n_fb >= 80 and cvr < 0.015 and ranker.ml_blend_alpha > 0.15:
             ml_scale = 0.45
-            ucb_alpha = min(0.24, config.bandit_ucb_alpha + 0.04)
+            ucb_alpha = min(0.24, base_ucb + 0.04)
             regime = "conservative_fallback"
             reason = f"Low live CVR ({cvr:.4f} on {n_fb} reqs): pulling ML blend toward domain priors"
         elif new_share >= 0.06 or n_new >= 25:
-            ucb_alpha = min(0.22, config.bandit_ucb_alpha + 0.06)
-            rev_graft_w = min(0.42, config.weight_reverse_cold_graft + 0.10)
-            fwd_cold_w = min(0.58, config.weight_forward_cold + 0.08)
+            ucb_alpha = min(0.22, base_ucb + 0.06)
+            rev_graft_w = min(max(0.42, base_rev + 0.10), base_rev + 0.12)
+            fwd_cold_w = min(max(0.58, base_fwd + 0.08), base_fwd + 0.10)
             regime = "cold_surge"
             reason = (
                 f"Cold Start surge ({n_new} new items / {new_share:.1%}): "
@@ -104,7 +112,7 @@ class CalypsoAgent:
             )
         elif n_fb >= 250 and cvr >= 0.045:
             ml_scale = 1.15
-            ucb_alpha = max(0.08, config.bandit_ucb_alpha - 0.04)
+            ucb_alpha = max(0.08, base_ucb - 0.04)
             regime = "high_velocity_ml"
             reason = f"Strong live CVR ({cvr:.4f} on {n_fb} reqs): increasing ML exploit weight"
 
@@ -124,6 +132,9 @@ class CalypsoAgent:
         decision_record: dict[str, Any] = {
             "kind": "agent_decision",
             "model_version": config.model_version,
+            "weights_profile": (
+                weights_profile.profile_name if weights_profile is not None else "config_default"
+            ),
             "ts": ts_iso,
             "regime": regime,
             "reason": reason,

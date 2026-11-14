@@ -38,12 +38,13 @@ from .recommender import (
     build_snapshot_v4_from_records,
 )
 from .state import RecommenderSnapshotV4, StateStore, StaticHistoryBundle
+from .weights_profile import WeightsProfile, get_preset, load_active_profile
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("calypso4_1.serve")
+logger = logging.getLogger("calypso4_1_e.serve")
 
 
 def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
@@ -389,16 +390,22 @@ def build_bootstrap_snapshot(
     client: RawTreeClient,
     config: ConfigV4,
     cache: DiskCache,
+    *,
+    weights_profile: WeightsProfile | None = None,
 ) -> RecommenderSnapshotV4:
     """Fastest possible initial snapshot: disk snapshot -> cached history -> 2s minimal SQL."""
     t0 = time.perf_counter()
+    wp = weights_profile or config.load_weights_profile()
     cached_snap = cache.load_snapshot()
     if cached_snap is not None and cached_snap.active_ids:
+        cached_snap.weights_profile = wp
+        cached_snap.config_override = config
         logger.info(
-            "[BOOT] Loaded cached snapshot v%d from disk in %.3fs (%d active items)",
+            "[BOOT] Loaded cached snapshot v%d from disk in %.3fs (%d active items | profile=%s)",
             cached_snap.version,
             time.perf_counter() - t0,
             len(cached_snap.active_ids),
+            wp.profile_name,
         )
         return cached_snap
 
@@ -421,7 +428,9 @@ def build_bootstrap_snapshot(
             version=1,
             cart_hist_rows=getattr(cached_hist, "cart_hist_rows", None) or [],
             recurrent_hist_rows=getattr(cached_hist, "recurrent_hist_rows", None) or [],
+            weights_profile=wp,
         )
+        snap.config_override = config
         cache.save_snapshot(snap)
         logger.info("[BOOT] Built snapshot from cached history in %.2fs", time.perf_counter() - t0)
         return snap
@@ -435,7 +444,9 @@ def build_bootstrap_snapshot(
         out_of_stock_ids=[str(r["product_id"]) for r in oos],
         config=config,
         version=1,
+        weights_profile=wp,
     )
+    snap.config_override = config
     logger.info(
         "[BOOT] Minimal 2s bootstrap ready in %.2fs (%d active items); background will load full history.",
         time.perf_counter() - t0,
@@ -445,7 +456,7 @@ def build_bootstrap_snapshot(
 
 
 class Stage4BackgroundUpdater(threading.Thread):
-    """Separated 3-cadence updater: static history once/15m, live signals 15s, stock 1.5s."""
+    """Separated 3-cadence updater with live hot-reload of weights_profile.json."""
 
     def __init__(
         self,
@@ -454,6 +465,8 @@ class Stage4BackgroundUpdater(threading.Thread):
         config: ConfigV4,
         cache: DiskCache,
         stop_event: threading.Event,
+        *,
+        weights_profile: WeightsProfile | None = None,
     ) -> None:
         super().__init__(name="Stage4BackgroundUpdater", daemon=True)
         self.client = client
@@ -462,10 +475,24 @@ class Stage4BackgroundUpdater(threading.Thread):
         self.cache = cache
         self.stop_event = stop_event
         self.agent = CalypsoAgent()
+        self._profile_path = config.resolve_weights_profile_path()
+        try:
+            self._profile_mtime: float | None = (
+                self._profile_path.stat().st_mtime if self._profile_path.is_file() else None
+            )
+        except OSError:
+            self._profile_mtime = None
+        self._active_profile: WeightsProfile = (
+            weights_profile if weights_profile is not None else config.load_weights_profile()
+        )
+        wp = self._active_profile
         self.bandit = PositionAwareBandit(
-            exam_power=config.bandit_exam_power,
-            prior_strength=config.bandit_prior_strength,
-            cold_ucb_multiplier=config.bandit_cold_ucb_multiplier,
+            exam_power=wp.bandit_exam_power,
+            prior_strength=wp.bandit_prior_strength,
+            cold_ucb_multiplier=wp.bandit_cold_ucb_multiplier,
+            warm_ucb_multiplier=wp.bandit_warm_ucb_multiplier,
+            click_reward=wp.bandit_click_reward,
+            purchase_reward=wp.bandit_purchase_reward,
         )
         self._static_bundle: StaticHistoryBundle | None = cache.load_static_history()
         # 4.1: índice de carrito/recurrentes (histórico precalculado + capa en vivo)
@@ -527,6 +554,57 @@ class Stage4BackgroundUpdater(threading.Thread):
         live_rows = _merge_live_cart_rows(self._live_cart_full, recent_rows or [])
         return self._get_cart_index().build(live_rows, self._fb_purchase_rows)
 
+    def _check_profile_reload(self) -> bool:
+        """Reload weights_profile.json on disk modifications without stopping serving."""
+        try:
+            if not self._profile_path.is_file():
+                return False
+            cur_mtime = self._profile_path.stat().st_mtime
+        except OSError:
+            return False
+        if self._profile_mtime is not None and abs(cur_mtime - self._profile_mtime) < 1e-6:
+            return False
+        try:
+            new_wp = WeightsProfile.load_json(self._profile_path)
+        except Exception as exc:
+            logger.warning("[HOT-RELOAD] Failed reading %s: %s", self._profile_path, exc)
+            return False
+
+        self._profile_mtime = cur_mtime
+        if new_wp == self._active_profile:
+            return False
+        old_name = self._active_profile.profile_name
+        old_min_rec = self._active_profile.v4_recurrent_min_purchases
+        self._active_profile = new_wp
+        self.config = ConfigV4.from_profile(
+            new_wp,
+            api_url=self.config.api_url,
+            team_id=self.config.team_id,
+            api_key=self.config.api_key,
+            model_version=self.config.model_version,
+            poll_interval_s=self.config.poll_interval_s,
+            stock_refresh_interval_s=self.config.stock_refresh_interval_s,
+            live_refresh_interval_s=self.config.live_refresh_interval_s,
+            weights_profile_path=self.config.weights_profile_path,
+        )
+        if new_wp.v4_recurrent_min_purchases != old_min_rec:
+            self._cart_index = None
+        self.bandit = PositionAwareBandit(
+            exam_power=new_wp.bandit_exam_power,
+            prior_strength=new_wp.bandit_prior_strength,
+            cold_ucb_multiplier=new_wp.bandit_cold_ucb_multiplier,
+            warm_ucb_multiplier=new_wp.bandit_warm_ucb_multiplier,
+            click_reward=new_wp.bandit_click_reward,
+            purchase_reward=new_wp.bandit_purchase_reward,
+        )
+        logger.info(
+            "[HOT-RELOAD] Reloaded profile '%s' -> '%s' from %s",
+            old_name,
+            new_wp.profile_name,
+            self._profile_path.name,
+        )
+        return True
+
     def refresh_live_and_model(self, force_static: bool = False) -> None:
         """Rebuild snapshot using cached static history + lightweight live SQL queries."""
         t0 = time.perf_counter()
@@ -568,7 +646,9 @@ class Stage4BackgroundUpdater(threading.Thread):
             version=self._version,
             agent=self.agent,
             cart_state=cart_state,
+            weights_profile=self._active_profile,
         )
+        snap.config_override = self.config
         self.store.update(snap)
         self.cache.save_snapshot(snap)
 
@@ -579,9 +659,10 @@ class Stage4BackgroundUpdater(threading.Thread):
                 logger.warning("Scratch telemetry push skipped: %s", exc)
 
         logger.info(
-            "[%s] Live snapshot v%d ready & cached in %.2fs | active=%d | ml_alpha=%.3f | regime=%s | fb=%d"
+            "[%s | profile=%s] Live snapshot v%d ready & cached in %.2fs | active=%d | ml_alpha=%.3f | regime=%s | fb=%d"
             " | carts_users=%d | recurrent_users=%d",
             self.config.model_version,
+            self._active_profile.profile_name,
             snap.version,
             time.perf_counter() - t0,
             len(snap.active_ids),
@@ -679,6 +760,8 @@ class Stage4BackgroundUpdater(threading.Thread):
             agent_overrides=current.agent_overrides,
             user_carts=new_carts,
             user_recurrent=new_recurrent,
+            weights_profile=self._active_profile,
+            config_override=self.config,
         )
         self.store.update(updated)
 
@@ -689,11 +772,12 @@ class Stage4BackgroundUpdater(threading.Thread):
         while not self.stop_event.is_set():
             now = time.time()
             try:
+                profile_changed = self._check_profile_reload()
                 need_static = (
                     self._static_bundle is None
                     or (now - last_static >= self.config.static_refresh_interval_s)
                 )
-                if need_static or (now - last_live >= self.config.live_refresh_interval_s):
+                if profile_changed or need_static or (now - last_live >= self.config.live_refresh_interval_s):
                     self.refresh_live_and_model(force_static=need_static)
                     last_live = time.time()
                     if need_static:
@@ -802,14 +886,36 @@ class CalypsoFastLoopV4:
         return len(answers)
 
 
-def run_dry_run(n_batches: int = 20, batch_size: int = 25) -> None:
+def _resolve_runtime_profile(preset: str = "", weights_profile: str = "") -> tuple[WeightsProfile, ConfigV4]:
+    base_cfg = ConfigV4.from_env(weights_profile_path=weights_profile or None)
+    if preset:
+        wp = get_preset(preset)
+        cfg = ConfigV4.from_profile(
+            wp,
+            api_url=base_cfg.api_url,
+            team_id=base_cfg.team_id,
+            api_key=base_cfg.api_key,
+            model_version=base_cfg.model_version,
+            weights_profile_path=weights_profile or base_cfg.weights_profile_path,
+        )
+        return wp, cfg
+    wp = base_cfg.load_weights_profile()
+    return wp, base_cfg
+
+
+def run_dry_run(n_batches: int = 20, batch_size: int = 25, *, preset: str = "", weights_profile: str = "") -> None:
     """Exercise DiskCache persistence, instant reload, Slot-Gated scoring, and post-push retry."""
     import tempfile
 
-    syn = generate_synthetic_dataset_v4(seed=11, n_test_sessions=n_batches * batch_size)
+    wp, cfg = _resolve_runtime_profile(preset=preset, weights_profile=weights_profile)
+    syn = generate_synthetic_dataset_v4(
+        seed=11,
+        n_test_sessions=n_batches * batch_size,
+        config_v4=cfg,
+        weights_profile=wp,
+    )
     snap: RecommenderSnapshotV4 = syn["snap_v4"]
     bundle: StaticHistoryBundle = syn["static_bundle"]
-    cfg = ConfigV4()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         cache = DiskCache(Path(tmp_dir))
@@ -845,15 +951,16 @@ def run_dry_run(n_batches: int = 20, batch_size: int = 25) -> None:
 
     avg_batch = sum(latencies_ms) / max(len(latencies_ms), 1)
     print(
-        f"[DRY-RUN OK | Stage 4 · {cfg.model_version}] Answered {total_answered}/{len(rows)} reqs | "
+        f"[DRY-RUN OK | Stage 4 · {cfg.model_version} · profile={wp.profile_name}] Answered {total_answered}/{len(rows)} reqs | "
         f"mean compute: {avg_batch:.2f} ms ({avg_batch / batch_size:.3f} ms/req) | "
         f"cache save={save_ms:.1f} ms / instant boot load={load_ms:.1f} ms"
     )
 
 
-def run_self_check() -> None:
+def run_self_check(*, preset: str = "", weights_profile: str = "") -> None:
     """Fast pre-flight verification (<1.5s) used by model_manager before hot-swaps."""
     t0 = time.perf_counter()
+    wp, cfg = _resolve_runtime_profile(preset=preset, weights_profile=weights_profile)
     syn = generate_synthetic_dataset_v4(
         seed=7,
         n_warm_products=80,
@@ -862,8 +969,9 @@ def run_self_check() -> None:
         n_history_sessions=160,
         n_feedback_sessions=40,
         n_test_sessions=10,
+        config_v4=cfg,
+        weights_profile=wp,
     )
-    cfg = ConfigV4()
     snap: RecommenderSnapshotV4 = syn["snap_v4"]
     loop = CalypsoFastLoopV4(
         client=None,
@@ -878,10 +986,10 @@ def run_self_check() -> None:
         if not validate_submission_record(ans, snap.active_ids):
             raise RuntimeError(f"Invalid submission record produced in self-check: {ans}")
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
-    print(f"[SELF-CHECK OK | {cfg.model_version}] Verified {len(answers)} recs in {elapsed_ms:.1f} ms")
+    print(f"[SELF-CHECK OK | {cfg.model_version} · profile={wp.profile_name}] Verified {len(answers)} recs in {elapsed_ms:.1f} ms")
 
 
-def run_train_only(cfg: ConfigV4) -> None:
+def run_train_only(cfg: ConfigV4, *, weights_profile: WeightsProfile | None = None) -> None:
     """Train fresh snapshot (EASE, Cold-Start, Bandit, IPS ML Re-Ranker) to disk cache and exit."""
     if not cfg.team_id or not cfg.api_key:
         raise SystemExit("TEAM_ID i RAWTREE_API_KEY són obligatoris per entrenar des de RawTree.")
@@ -895,6 +1003,7 @@ def run_train_only(cfg: ConfigV4) -> None:
         config=cfg,
         cache=cache,
         stop_event=threading.Event(),
+        weights_profile=weights_profile,
     )
     updater.refresh_live_and_model(force_static=True)
     snap = store.get()
@@ -928,24 +1037,26 @@ def run_watchdog(pass_through_args: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calypso 4.1 Encapsulated Real-Time Recommender Service")
+    parser = argparse.ArgumentParser(description="Calypso 4.1.e Encapsulated Modular Real-Time Recommender Service")
     parser.add_argument("--self-check", action="store_true", help="Run fast pre-flight verification and exit")
     parser.add_argument("--dry-run", action="store_true", help="Run local dry-run with disk cache")
     parser.add_argument("--train-only", action="store_true", help="Train fresh snapshot + ML ranker + EASE to disk cache and exit")
     parser.add_argument("--force-retrain", action="store_true", help="Ignore existing disk snapshot on boot and build fresh")
     parser.add_argument("--watchdog", action="store_true", help="Run auto-restarting supervisor loop")
     parser.add_argument("--model-version", type=str, default="", help="Override model_version label")
+    parser.add_argument("--preset", type=str, default="", help="Override WeightsProfile preset name")
+    parser.add_argument("--weights-profile", type=str, default="", help="Path to custom weights_profile JSON")
     parser.add_argument("--poll-interval", type=float, default=0.12, help="Fast-loop poll seconds")
     parser.add_argument("--stock-interval", type=float, default=1.5, help="Stock check seconds")
     parser.add_argument("--live-interval", type=float, default=15.0, help="Live feedback refit seconds")
     args = parser.parse_args()
 
     if args.self_check:
-        run_self_check()
+        run_self_check(preset=args.preset, weights_profile=args.weights_profile)
         return
 
     if args.dry_run:
-        run_dry_run()
+        run_dry_run(preset=args.preset, weights_profile=args.weights_profile)
         return
 
     if args.watchdog:
@@ -959,10 +1070,14 @@ def main() -> None:
         ]
         if args.model_version:
             child_args.extend(["--model-version", args.model_version])
+        if args.preset:
+            child_args.extend(["--preset", args.preset])
+        if args.weights_profile:
+            child_args.extend(["--weights-profile", args.weights_profile])
         run_watchdog(child_args)
         return
 
-    base_cfg = ConfigV4.from_env()
+    active_wp, base_cfg = _resolve_runtime_profile(preset=args.preset, weights_profile=args.weights_profile)
     cfg = replace(
         base_cfg,
         model_version=(args.model_version.strip() or base_cfg.model_version),
@@ -972,7 +1087,7 @@ def main() -> None:
     )
 
     if args.train_only:
-        run_train_only(cfg)
+        run_train_only(cfg, weights_profile=active_wp)
         return
 
     if not cfg.team_id or not cfg.api_key:
@@ -991,9 +1106,14 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
-                "model_name": "calypso 4.1",
+                "model_name": "calypso 4.1.e",
                 "model_version": cfg.model_version,
-                "folder": "calypso_4_1",
+                "folder": "calypso_4_1_e",
+                "profile": (
+                    snap.weights_profile.profile_name
+                    if (snap is not None and snap.weights_profile)
+                    else active_wp.profile_name
+                ),
                 "started_at": started_at,
                 "last_heartbeat_ts": time.time(),
                 "ready": ready,
@@ -1012,7 +1132,7 @@ def main() -> None:
     cache = DiskCache(cache_dir)
     if args.force_retrain and cache.snapshot_path.is_file():
         cache.snapshot_path.unlink(missing_ok=True)
-    boot_snap = build_bootstrap_snapshot(client, cfg, cache)
+    boot_snap = build_bootstrap_snapshot(client, cfg, cache, weights_profile=active_wp)
     store = StateStore(boot_snap)
     stop_event = threading.Event()
 
@@ -1028,6 +1148,7 @@ def main() -> None:
         config=cfg,
         cache=cache,
         stop_event=stop_event,
+        weights_profile=active_wp,
     )
     updater.start()
 
@@ -1037,7 +1158,13 @@ def main() -> None:
         recommender=CalypsoRecommenderV4(cfg),
         config=cfg,
     )
-    logger.info("Calypso 4.1 LIVE (team=%s, model=%s, pid=%d)", cfg.team_id, cfg.model_version, pid)
+    logger.info(
+        "Calypso 4.1.e LIVE (team=%s, model=%s, profile=%s, pid=%d)",
+        cfg.team_id,
+        cfg.model_version,
+        active_wp.profile_name,
+        pid,
+    )
 
     submitted_total = 0
     last_batch_size = 0
@@ -1053,7 +1180,7 @@ def main() -> None:
                 last_batch_size = answered
                 logger.info("[%s] Submitted %d fresh answers", cfg.model_version, answered)
         except Exception as exc:
-            logger.error("Calypso 4.1 FastLoop error: %s", exc)
+            logger.error("Calypso 4.1.e FastLoop error: %s", exc)
             time.sleep(0.35)
 
         now_t = time.time()
