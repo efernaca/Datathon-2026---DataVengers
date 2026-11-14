@@ -45,7 +45,7 @@ class ConfigV2:
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "etapa2-seq-mmr-v1"
+    model_version: str = "calypso-2.1"
 
     # Fast Serving Loop budget (< 3,000 ms SLA)
     poll_interval_sec: float = 0.20
