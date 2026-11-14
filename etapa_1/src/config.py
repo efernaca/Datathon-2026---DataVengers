@@ -9,12 +9,15 @@ from pathlib import Path
 def load_dotenv_files() -> list[Path]:
     """Load key=value pairs from .env files into os.environ without overwriting existing vars."""
     here = Path(__file__).resolve()
-    candidates = [
-        Path.cwd() / ".env",
-        here.parents[1] / ".env",
-        here.parents[2] / ".env",
-        here.parents[2] / "datathon-fme-2026-main" / "datathon-fme-2026-main" / ".env",
+    search_dirs = [
+        Path.cwd(),
+        here.parents[1],
+        here.parents[2],
+        here.parents[2] / "datathon-fme-2026-main",
+        here.parents[2] / "datathon-fme-2026-main" / "datathon-fme-2026-main",
     ]
+    filenames = (".env", "group_API.env")
+    candidates = [d / fname for d in search_dirs for fname in filenames]
     loaded: list[Path] = []
     seen_paths: set[Path] = set()
     for path in candidates:
@@ -76,9 +79,10 @@ class Config:
     def from_env(cls) -> Config:
         """Build Config after loading local .env files."""
         load_dotenv_files()
+        defaults = cls()
         return cls(
-            api_url=os.environ.get("RAWTREE_API_URL", cls.api_url).rstrip("/"),
-            team_id=os.environ.get("TEAM_ID", ""),
-            api_key=os.environ.get("RAWTREE_API_KEY", ""),
-            model_version=os.environ.get("MODEL_VERSION", cls.model_version),
+            api_url=os.environ.get("RAWTREE_API_URL", defaults.api_url).rstrip("/"),
+            team_id=os.environ.get("TEAM_ID", defaults.team_id),
+            api_key=os.environ.get("RAWTREE_API_KEY", defaults.api_key),
+            model_version=os.environ.get("MODEL_VERSION", defaults.model_version),
         )
