@@ -1,0 +1,11 @@
+¿Qué estrategias podríais utilizar?
+
+- Collaborative Filtering: recomendar productos basándose en los comportamientos de usuarios con gustos similares.
+
+- Recomendaciones por contenido: utilizar categorías, marcas y descripciones para encontrar productos relacionados.
+
+- Modelos de popularidad dinámica: detectar qué productos están ganando popularidad en las últimas horas.
+
+- Multi-Armed Bandits: equilibrar la recomendación de productos que ya sabemos que funcionan con la exploración de productos nuevos.
+
+- Modelos híbridos: combinar varios de los métodos anteriores para mejorar las predicciones.
