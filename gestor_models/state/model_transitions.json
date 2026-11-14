@@ -12,5 +12,47 @@
     "elapsed_s": 82.4,
     "status": "ok",
     "detail": "Heartbeat llest (PID 7788, snapshot v1)"
+  },
+  {
+    "ts": "2026-11-14T17:50:43+00:00",
+    "action": "train_and_activate",
+    "from_folders": [
+      "calypso_2_1"
+    ],
+    "to_folder": "calypso_3_2",
+    "model_version": "calypso-3.2",
+    "pid": 21768,
+    "stopped_pids": [],
+    "elapsed_s": 136.0,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 21768, snapshot v1)"
+  },
+  {
+    "ts": "2026-11-14T18:39:54+00:00",
+    "action": "train_and_activate",
+    "from_folders": [],
+    "to_folder": "calypso_3_1b",
+    "model_version": "calypso-3.1b",
+    "pid": 11064,
+    "stopped_pids": [],
+    "elapsed_s": 76.6,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 11064, snapshot v1)"
+  },
+  {
+    "ts": "2026-11-14T18:50:31+00:00",
+    "action": "train_and_activate",
+    "from_folders": [
+      "calypso_3_1b"
+    ],
+    "to_folder": "calypso_4_1",
+    "model_version": "calypso-4.1",
+    "pid": 23700,
+    "stopped_pids": [
+      11064
+    ],
+    "elapsed_s": 98.8,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 23700, snapshot v1)"
   }
 ]
