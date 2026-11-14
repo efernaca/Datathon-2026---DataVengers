@@ -54,5 +54,33 @@
     "elapsed_s": 98.8,
     "status": "ok",
     "detail": "Heartbeat llest (PID 23700, snapshot v1)"
+  },
+  {
+    "ts": "2026-11-14T19:28:26+00:00",
+    "action": "train_and_activate",
+    "from_folders": [
+      "calypso_4_1"
+    ],
+    "to_folder": "calypso_4_1_e",
+    "model_version": "calypso-4.1e",
+    "pid": 23352,
+    "stopped_pids": [
+      23700
+    ],
+    "elapsed_s": 101.8,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 23352, snapshot v1)"
+  },
+  {
+    "ts": "2026-11-14T20:41:49+00:00",
+    "action": "train_and_activate",
+    "from_folders": [],
+    "to_folder": "calypso_4_1_e",
+    "model_version": "calypso-4.1e",
+    "pid": 16808,
+    "stopped_pids": [],
+    "elapsed_s": 93.8,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 16808, snapshot v1)"
   }
 ]
