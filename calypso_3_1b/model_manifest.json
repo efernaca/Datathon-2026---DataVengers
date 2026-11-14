@@ -1,0 +1,13 @@
+{
+  "name": "calypso 3.1b",
+  "model_version": "calypso-3.1b",
+  "folder": "calypso_3_1b",
+  "entrypoint": "serve.py",
+  "monitor": "monitor.py",
+  "eval": "eval.py",
+  "self_check_args": ["--self-check"],
+  "train_args": ["--train-only"],
+  "heartbeat_file": "cache/heartbeat.json",
+  "log_file": "logs/live.log",
+  "description": "Unified 4-Stage Calypso 3.1b (cambios 3.1 conmutables; EASE + Lift/UserProfile + IPS Re-Ranker/Bandit/Agent + Slot-Gated DiskCache SLA)"
+}
