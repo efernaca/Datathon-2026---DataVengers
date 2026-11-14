@@ -1,0 +1,19 @@
+{
+  "name": "calypso 4.2",
+  "model_version": "calypso-4.2",
+  "folder": "calypso_4_2",
+  "entrypoint": "serve.py",
+  "monitor": "monitor.py",
+  "eval": "eval.py",
+  "tuner": "tuner.py",
+  "weights_profile": "weights_profile.json",
+  "self_check_args": [
+    "--self-check"
+  ],
+  "train_args": [
+    "--train-only"
+  ],
+  "heartbeat_file": "cache/heartbeat.json",
+  "log_file": "logs/live.log",
+  "description": "Calypso 4.2 = Calypso 4.1.e + medidas de MEDIDAS_CONVERSION (puntuación calibrada tasa base × relación, ranking de ventas en vivo, exploración solo en slots 8-10, carrito como señal, home sin MMR). Preset activo: medidas_conversion."
+}
