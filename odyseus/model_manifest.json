@@ -1,6 +1,6 @@
 {
   "name": "odyseus",
-  "model_version": "odyseus-4.1e",
+  "model_version": "calypso-4.1f",
   "folder": "odyseus",
   "entrypoint": "serve.py",
   "monitor": "monitor.py",

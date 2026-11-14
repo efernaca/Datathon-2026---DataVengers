@@ -63,12 +63,12 @@ def load_dotenv_files() -> None:
 
 @dataclass(frozen=True, slots=True)
 class ConfigV4:
-    """Immutable configuration for Stage 4 (odyseus-4.1e: modular + reglas de negocio conmutables)."""
+    """Immutable configuration for Stage 4 (calypso-4.1f · Odyseus modular + reglas de negocio conmutables)."""
 
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "odyseus-4.1e"
+    model_version: str = "calypso-4.1f"
     weights_profile_path: str = "weights_profile.json"
 
     # SLA-hardened Fast / Live / Stock cadence timings

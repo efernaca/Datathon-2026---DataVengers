@@ -988,7 +988,7 @@ class CalypsoRecommenderV4:
                 _add(pid)
 
         # 3. Co-views / transitions and bidirectional cold-start neighbors (capped so Top-N always fits)
-        trans_cap = max(pool_limit - guaranteed_top - 8, 48)
+        trans_cap = max(pool_limit - guaranteed_top - 8, 44)
         for seen_pid in reversed(recent_views):
             if len(candidates) >= trans_cap:
                 break
@@ -1019,12 +1019,21 @@ class CalypsoRecommenderV4:
             _add(pid)
 
         # 5. Contextual buckets & new items
-        for pid, _ in snapshot.ctx_3.get((region, device, page), ())[:18]:
-            _add(pid)
-        for pid, _ in snapshot.ctx_2.get((region, device), ())[:12]:
-            _add(pid)
-        for pid, _ in snapshot.ctx_1.get((page,), ())[:10]:
-            _add(pid)
+        if len(candidates) < pool_limit:
+            for pid, _ in snapshot.ctx_3.get((region, device, page), ())[:18]:
+                if len(candidates) >= pool_limit:
+                    break
+                _add(pid)
+        if len(candidates) < pool_limit:
+            for pid, _ in snapshot.ctx_2.get((region, device), ())[:12]:
+                if len(candidates) >= pool_limit:
+                    break
+                _add(pid)
+        if len(candidates) < pool_limit:
+            for pid, _ in snapshot.ctx_1.get((page,), ())[:10]:
+                if len(candidates) >= pool_limit:
+                    break
+                _add(pid)
 
         if snapshot.new_product_ids:
             anchor_subcat = ""
@@ -1267,31 +1276,70 @@ class CalypsoRecommenderV4:
         discount_w = wp.discount_boost_weight
         products_map = snapshot.products
 
-        for idx, pid in enumerate(candidates):
-            s_seq = min(seq_scores.get(pid, 0.0), 1.8) * m_seq
-            sv_raw = self_view_scores.get(pid, 0.0)
-            s_self = min(sv_raw * 5.0, 1.2)
-            cand_viewed[idx] = sv_raw > 0.0
-            s_intent = intent_scores.get(pid, 0.0) * m_int
-            s_ctx = ctx_scores.get(pid, 0.0) * m_ctx
-            s_rev = rev_graft_scores.get(pid, 0.0) * m_cld
-            s_fwd = fwd_cold_scores.get(pid, 0.0) * m_cld
+        seq_get = seq_scores.get
+        sv_get = self_view_scores.get
+        int_get = intent_scores.get
+        ctx_get = ctx_scores.get
+        rev_get = rev_graft_scores.get
+        fwd_get = fwd_cold_scores.get
+        has_seq = bool(seq_scores)
+        has_sv = bool(self_view_scores)
+        has_int = bool(intent_scores)
+        has_ctx = bool(ctx_scores)
+        has_rev = bool(rev_graft_scores)
+        has_fwd = bool(fwd_cold_scores)
+        has_cart_b = bool(cart_bonus_map)
+        has_rec_b = bool(rec_bonus_map)
+        prod_get = products_map.get
+        st_get = product_static.get
+        aff_get = affinity_map.get
+        cart_b_get = cart_bonus_map.get
+        rec_b_get = rec_bonus_map.get
+        z2_clip = wp.price_z2_clip
+        cheap_asym = wp.price_cheap_asymmetry
+        bg_same = wp.bg_penalty_same_subcat
+        bg_diff = wp.bg_penalty_diff_subcat
 
-            p_info = products_map.get(pid)
+        for idx, pid in enumerate(candidates):
+            if has_seq:
+                raw_seq = seq_get(pid, 0.0)
+                s_seq = (1.8 if raw_seq > 1.8 else raw_seq) * m_seq
+            else:
+                s_seq = 0.0
+            if has_sv:
+                sv_raw = sv_get(pid, 0.0)
+                if sv_raw > 0.0:
+                    sv5 = sv_raw * 5.0
+                    s_self = 1.2 if sv5 > 1.2 else sv5
+                    cand_viewed[idx] = True
+                else:
+                    s_self = 0.0
+            else:
+                s_self = 0.0
+            s_intent = int_get(pid, 0.0) * m_int if has_int else 0.0
+            s_ctx = ctx_get(pid, 0.0) * m_ctx if has_ctx else 0.0
+            s_rev = rev_get(pid, 0.0) * m_cld if has_rev else 0.0
+            s_fwd = fwd_get(pid, 0.0) * m_cld if has_fwd else 0.0
+
+            p_info = prod_get(pid)
             p_cat = p_info.category if p_info is not None else ""
             discount_r = p_info.discount_ratio if p_info is not None else 0.0
             cand_cats[idx] = p_cat
-            rule_bonus = cart_bonus_map.get(pid, 0.0) + rec_bonus_map.get(pid, 0.0) + discount_w * discount_r
+            rule_bonus = discount_w * discount_r
+            if has_cart_b:
+                rule_bonus += cart_b_get(pid, 0.0)
+            if has_rec_b:
+                rule_bonus += rec_b_get(pid, 0.0)
 
-            st = product_static.get(pid)
+            st = st_get(pid)
             if st is not None:
                 sc, br, gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b = st
                 cand_lp[idx] = lp_norm
                 s_aff = 0.0
                 if has_aff:
-                    s_aff = affinity_map.get((sc, br), 0.0)
+                    s_aff = aff_get((sc, br), 0.0)
                     if s_aff == 0.0:
-                        s_aff = affinity_map.get((sc, ""), 0.0) * 0.6
+                        s_aff = aff_get((sc, ""), 0.0) * 0.6
                     s_aff *= m_aff
 
                 s_pcompat = 0.0
@@ -1300,8 +1348,8 @@ class CalypsoRecommenderV4:
                         lp_norm * max_lp,
                         mean_lp,
                         std_lp,
-                        z2_clip=wp.price_z2_clip,
-                        cheap_asymmetry=wp.price_cheap_asymmetry,
+                        z2_clip=z2_clip,
+                        cheap_asymmetry=cheap_asym,
                     )
 
                 same_sc = bool(anchor_subcat and sc == anchor_subcat)
@@ -1316,7 +1364,7 @@ class CalypsoRecommenderV4:
                     and s_fwd == 0.0
                     and s_self == 0.0
                 ):
-                    bg_score *= wp.bg_penalty_same_subcat if same_sc else wp.bg_penalty_diff_subcat
+                    bg_score *= bg_same if same_sc else bg_diff
 
                 score_p = (
                     w0 * s_seq
@@ -1377,7 +1425,11 @@ class CalypsoRecommenderV4:
         tie_eps = wp.tie_break_eps
         new_picked_count = 0
         tie_mode = wp.tie_break_mode
-        use_eps_tie = tie_eps > 0.0 and tie_mode in ("cheap", "revenue")
+        is_conv_tie = tie_mode == "conversion"
+        is_cheap_tie = tie_mode == "cheap"
+        use_eps_tie = tie_eps > 0.0 and not is_conv_tie
+        use_rel_mmr = wp.mmr_relative_penalty
+        confirmed_cold_gate = max(4, cold_gate) if is_cold_session else 4
 
         target_k = min(k, n_cands)
         while len(selected) < target_k:
@@ -1385,6 +1437,7 @@ class CalypsoRecommenderV4:
             gate_pass = slot_pos >= cold_gate
             allow_ucb = gate_pass
             allow_new = gate_pass and (is_cold_session or new_picked_count < max_cold_warm)
+            allow_confirmed_cold = slot_pos >= confirmed_cold_gate and new_picked_count < max_cold_warm
             apply_mmr = slot_pos >= mmr_start
             apply_slot1_cat = slot_pos == 0 and has_session_intent and slot1_cat_bonus > 0.0
 
@@ -1398,15 +1451,7 @@ class CalypsoRecommenderV4:
                     continue
                 is_n = cand_is_new[idx]
                 confirmed_cold = cand_confirmed_cold[idx]
-                if (
-                    is_n
-                    and not allow_new
-                    and not (
-                        slot_pos >= max(4, cold_gate if is_cold_session else 4)
-                        and confirmed_cold
-                        and new_picked_count < max_cold_warm
-                    )
-                ):
+                if is_n and not allow_new and not (confirmed_cold and allow_confirmed_cold):
                     continue
                 val = full_scores[idx] if (allow_ucb or confirmed_cold) else prec_scores[idx]
                 if apply_slot1_cat:
@@ -1419,7 +1464,7 @@ class CalypsoRecommenderV4:
                 if apply_mmr:
                     sc = cand_subcats[idx]
                     br = cand_brands[idx]
-                    if wp.mmr_relative_penalty:
+                    if use_rel_mmr:
                         pen = 0.0
                         if sc and subcat_lam > 0.0:
                             pen += subcat_lam * subcat_counts[sc]
@@ -1435,7 +1480,13 @@ class CalypsoRecommenderV4:
                             val -= subcat_lam * subcat_counts[sc]
                         if br and brand_lam > 0.0:
                             val -= brand_lam * brand_counts[br]
-                tie_val = -cand_lp[idx] if tie_mode == "cheap" else (cand_lp[idx] if tie_mode == "revenue" else 0.0)
+                if is_conv_tie:
+                    if val > best_val:
+                        best_val = val
+                        best_idx = idx
+                    continue
+
+                tie_val = -cand_lp[idx] if is_cheap_tie else cand_lp[idx]
                 idx_sc = cand_subcats[idx]
                 if best_idx < 0:
                     best_idx = idx
@@ -1462,12 +1513,12 @@ class CalypsoRecommenderV4:
                 elif use_eps_tie and anchor_sc and idx_sc == anchor_sc:
                     eps_tol = max(1e-9, tie_eps * abs(anchor_val))
                     if val >= anchor_val - eps_tol and (
-                        tie_val > best_tie + 1e-9 or (abs(tie_val - best_tie) <= 1e-9 and val > best_val)
+                        tie_val > best_tie + 1e-9 or (val > best_val and abs(tie_val - best_tie) <= 1e-9)
                     ):
                         best_idx = idx
                         best_val = val
                         best_tie = tie_val
-                elif abs(val - anchor_val) <= 1e-9 and tie_val > best_tie:
+                elif tie_val > best_tie and abs(val - anchor_val) <= 1e-9:
                     best_idx = idx
                     best_val = val
                     best_tie = tie_val

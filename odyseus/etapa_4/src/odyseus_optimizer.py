@@ -176,7 +176,7 @@ def _update_snapshot_for_profile(
     base_ucb_alpha: float,
 ) -> tuple[RecommenderSnapshotV4, ConfigV4]:
     """Attach updated WeightsProfile, ConfigV4, ranker weights, and UCB cache in <20ms."""
-    cfg = ConfigV4.from_profile(wp, model_version="odyseus-4.1e")
+    cfg = ConfigV4.from_profile(wp, model_version="calypso-4.1f")
     base_ranker = base_snap.ranker
     pw = wp.prior_weights_array()
     if base_ranker is not None:
@@ -744,7 +744,7 @@ def run_odyseus_optimization(
         seen_sigs.add(profile_signature(wp))
 
         archive = {
-            "model": "odyseus-4.1e",
+            "model": "calypso-4.1f",
             "eval_mode": eval_mode,
             "objective_formula": (
                 "0.65*real_conv + 0.35*syn_conv"

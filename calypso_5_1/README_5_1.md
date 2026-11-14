@@ -10,7 +10,7 @@ Versió evolutiva sobre `calypso_4_1_e` (`model_version = "calypso-5.1"`) dissen
 |---|---|---|
 | **M1 / R7** | Sense ordenació per preu ascendent | `v4_price_ascending = false` i `tie_break_mode = "conversion"` per defecte; desempat relatiu `tie_break_eps = 0.012` en una sola passada dins la mateixa subcategoria quan s'activa `cheap`/`revenue` (`recommender.py`). |
 | **M3 / D2** | Taxa base explícita per rànquing de vendes | `use_sales_rank_base_rate = true` (`sales_rank_blend_weight = 0.32`, `w_global_pop = 0.44`) combina `1 - ln(rank)/ln(max_rank)` amb `log1p(weighted_pop)` a `build_snapshot_v4_from_records`. |
-| **D3 / R5** | Pool calibrat + Top-14 vendes garantit | `candidate_pool_size = 84` i `guaranteed_top_sellers_in_pool = 14`; `_gather_candidates` prioritza vistes recents i transicions amb sostre perquè els Top-14 supervendes i contextuals entrin sempre al pool. |
+| **D3 / R5** | Pool calibrat + Top-14 vendes garantit | `candidate_pool_size = 78` i `guaranteed_top_sellers_in_pool = 14`; `_gather_candidates` prioritza vistes recents i transicions amb sostre perquè els Top-14 supervendes i contextuals entrin sempre al pool. |
 | **D4** | Eliminació del `×0.25` hardcoded al fons | Quan `v3_bg_penalty = false` s'elimina la penalització hardcoded; amb `v3_bg_penalty = true` s'apliquen pesos configurables (`0.75` mateixa subcat / `0.25` altra subcat). |
 | **D5** | Co-visites modulades per taxa base de destí | `transition_dest_pop_gamma = 0.20` pondera el *lift* amb `global_pop_norm[dst]` perquè les co-visites de cua no superin productes que venen. |
 | **D6 / R1** | "Vist" sense penalització `0.65` en fitxa producte | `view_last_product_page_factor = 1.0`, `view_base_bonus = 0.52` i `w_self_cvr_view = 2.10`. |

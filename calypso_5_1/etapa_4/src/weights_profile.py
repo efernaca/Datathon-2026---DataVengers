@@ -43,7 +43,7 @@ class WeightsProfile:
 
     # Identification
     profile_name: str = "conversion_first"
-    description: str = "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 84 amb Top-14 vendes D3, cold-start X10, carret/recurrents per puntuació M6)."
+    description: str = "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 78 amb Top-14 vendes D3, cold-start X10, carret/recurrents per puntuació M6)."
 
     # 14 Prior Weights matching FEATURE_NAMES order
     w_seq_lift: float = 1.15
@@ -110,7 +110,7 @@ class WeightsProfile:
     cold_neighbor_pop_prior_weight: float = 0.80
 
     # Stage 5.1 Base-Rate, Candidate Pool & Conversion Signals
-    candidate_pool_size: int = 84
+    candidate_pool_size: int = 78
     guaranteed_top_sellers_in_pool: int = 14
     use_sales_rank_base_rate: bool = True
     sales_rank_blend_weight: float = 0.32

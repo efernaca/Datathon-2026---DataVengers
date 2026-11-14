@@ -81,7 +81,7 @@ class ConfigV4:
     cache_dir: str = "cache"
 
     # Fast candidate retrieval & sequential scoring
-    candidate_pool_size: int = 84
+    candidate_pool_size: int = 78
     recency_decay: float = 0.65
     lift_beta: float = 0.45
     lift_prior_pop: float = 30.0

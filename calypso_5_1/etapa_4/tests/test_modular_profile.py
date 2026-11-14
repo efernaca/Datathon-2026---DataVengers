@@ -170,13 +170,13 @@ class TestModularWeightsProfile(unittest.TestCase):
         snap, _ = build_snapshot_v4_from_records(**records, config=cfg, weights_profile=wp)
         rec = CalypsoRecommenderV4(cfg)
 
-        # (D3) Pool >= 80 and Top-N bestsellers preserved even with multiple recent_views
+        # (D3) Pool >= 75 and Top-N bestsellers preserved even with multiple recent_views
         warm_pool = [pid for pid in snap.fallback_ranked if pid not in snap.new_product_ids]
         rv = warm_pool[40:44] if len(warm_pool) > 44 else warm_pool[:3]
         cands = rec._gather_candidates(("u_x", False, "Madrid", "web", "product", rv), snap, frozenset())
-        self.assertGreaterEqual(cfg.candidate_pool_size, 80)
+        self.assertGreaterEqual(cfg.candidate_pool_size, 75)
         self.assertGreaterEqual(wp.guaranteed_top_sellers_in_pool, 12)
-        self.assertGreaterEqual(len(cands), 80)
+        self.assertGreaterEqual(len(cands), 75)
         cands_set = set(cands)
         expected_top = [
             pid for pid in snap.fallback_ranked[: wp.guaranteed_top_sellers_in_pool] if pid in snap.active_ids

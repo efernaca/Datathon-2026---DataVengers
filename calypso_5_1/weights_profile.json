@@ -1,6 +1,6 @@
 {
   "profile_name": "conversion_first",
-  "description": "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 84 amb Top-14 vendes D3, cold-start X10, carret/recurrents per puntuació M6).",
+  "description": "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 78 amb Top-14 vendes D3, cold-start X10, carret/recurrents per puntuació M6).",
   "w_seq_lift": 1.15,
   "w_self_cvr_view": 2.1,
   "w_intent_score": 0.62,
@@ -95,7 +95,7 @@
   "cold_explore_start_slot_cold": 0,
   "max_cold_explore_in_warm": 2,
   "cold_neighbor_pop_prior_weight": 0.8,
-  "candidate_pool_size": 84,
+  "candidate_pool_size": 78,
   "guaranteed_top_sellers_in_pool": 14,
   "use_sales_rank_base_rate": true,
   "sales_rank_blend_weight": 0.32,

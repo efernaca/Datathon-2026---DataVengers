@@ -1,4 +1,4 @@
-"""Etapa 4 · Operational hardening, disk-cached instant recovery & Odyseus (Calypso 4.1.e)."""
+"""Etapa 4 · Operational hardening, disk-cached instant recovery & Odyseus (calypso-4.1f)."""
 
 __all__ = ["__version__"]
-__version__ = "odyseus-4.1e"
+__version__ = "calypso-4.1f"
