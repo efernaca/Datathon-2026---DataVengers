@@ -1,4 +1,4 @@
-# Odyseus (`odyseus-4.1e`) · Optimitzador Iteratiu de Conversió Offline
+# Odyseus (`calypso-4.1f`) · Optimitzador Iteratiu de Conversió Offline
 
 `odyseus` parteix d'una còpia encapsulada de `calypso_4_1_e` i incorpora un optimitzador iteratiu offline (`optimize.py` / `etapa_4/src/odyseus_optimizer.py`) dissenyat per trobar la combinació òptima de paràmetres que maximitza la taxa de conversió.
 

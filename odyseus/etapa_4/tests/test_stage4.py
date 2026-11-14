@@ -98,7 +98,7 @@ class TestStage4Hardening(unittest.TestCase):
         self.assertEqual(sent, 3)
         self.assertEqual(len(flaky_client.pushed_batches), 1)
         for rec in flaky_client.pushed_batches[0]:
-            self.assertEqual(rec["model_version"], "odyseus-4.1e")
+            self.assertEqual(rec["model_version"], "calypso-4.1f")
             self.assertTrue(validate_submission_record(rec, snap.active_ids))
 
         # Cycle 3: same requests are now skipped because push was confirmed

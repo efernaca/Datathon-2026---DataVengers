@@ -5,12 +5,12 @@
   "folder": "calypso_4_2",
   "profile": "medidas_conversion",
   "started_at": 1794690416.083774,
-  "last_heartbeat_ts": 1794690965.4327607,
+  "last_heartbeat_ts": 1794690972.6840208,
   "ready": true,
   "snapshot_version": 34,
   "active_products": 5263,
   "ml_alpha": 0.0836,
   "regime": "cold_surge",
-  "submitted_total": 1537,
-  "last_batch_size": 7
+  "submitted_total": 1560,
+  "last_batch_size": 4
 }
