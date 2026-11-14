@@ -248,6 +248,19 @@ def main() -> None:
     parser.add_argument("--iters", type=int, default=16, help="Optimization iterations")
     parser.add_argument("--seed", type=int, default=42, help="Synthetic benchmark random seed")
     parser.add_argument("--n-test", type=int, default=1200, help="Number of synthetic test requests for tuning")
+    parser.add_argument(
+        "--eval-mode",
+        choices=("hybrid", "real", "synthetic"),
+        default="hybrid",
+        help="Offline evaluation mode for --optimize",
+    )
+    parser.add_argument(
+        "--history-file",
+        type=str,
+        default="",
+        help="Single JSON archive path for --optimize iteration history",
+    )
+    parser.add_argument("--resume", action="store_true", help="Resume appending to history archive")
     parser.add_argument("--save-best", action="store_true", help="Save optimized profile to weights_profile.json")
     args = parser.parse_args()
 
@@ -299,39 +312,26 @@ def main() -> None:
         return
 
     if args.optimize:
-        t0 = time.perf_counter()
-        syn = generate_synthetic_dataset_v4(
-            seed=args.seed,
-            n_warm_products=400,
-            n_new_products=35,
-            n_warm_users=900,
-            n_history_sessions=3000,
-            n_feedback_sessions=800,
-            n_test_sessions=args.n_test,
+        from .odyseus_optimizer import run_odyseus_optimization
+
+        model_root = Path(__file__).resolve().parents[2]
+        history_path = (
+            Path(args.history_file)
+            if args.history_file
+            else (model_root / "results" / "odyseus_history.json")
         )
-        best_wp, verified_eval, history = optimize_profile(
-            updated_wp,
-            syn,
+        run_odyseus_optimization(
+            model_root,
+            base_profile=updated_wp,
+            history_path=history_path,
+            eval_mode=args.eval_mode,
             iters=args.iters,
             seed=args.seed,
+            n_syn=args.n_test,
+            resume=args.resume,
+            save_best=args.save_best,
+            target_profile_path=target_path,
         )
-        accepted_steps = [h for h in history if h["accepted"]]
-        print(
-            f"=== Iterative Conversion Optimization ({args.iters} iters, {time.perf_counter() - t0:.2f}s) ==="
-        )
-        print(
-            f"Baseline: obj={history[0]['objective']:.5f} | "
-            f"hit@10={history[0]['hit_rate_buy@10']:.5f} | dcg@10={history[0]['dcg_buy@10']:.5f}"
-        )
-        print(
-            f"Best    : obj={verified_eval['objective']:.5f} | "
-            f"hit@10={float(verified_eval['ALL']['hit_rate_buy@10']):.5f} | "
-            f"dcg@10={float(verified_eval['ALL']['dcg_buy@10']):.5f} | "
-            f"accepted moves={len(accepted_steps) - 1}"
-        )
-        if args.save_best:
-            saved = best_wp.save_json(target_path)
-            print(f"[TUNER] Saved optimized profile '{best_wp.profile_name}' -> {saved}")
         return
 
     # Default action: show brief active profile summary

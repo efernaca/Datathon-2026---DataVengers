@@ -44,7 +44,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("calypso4_1_e.serve")
+logger = logging.getLogger("odyseus.serve")
 
 
 def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
@@ -1106,9 +1106,9 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
-                "model_name": "calypso 4.1.e",
+                "model_name": "odyseus",
                 "model_version": cfg.model_version,
-                "folder": "calypso_4_1_e",
+                "folder": "odyseus",
                 "profile": (
                     snap.weights_profile.profile_name
                     if (snap is not None and snap.weights_profile)

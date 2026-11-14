@@ -1,7 +1,7 @@
 {
-  "name": "calypso 4.1.e",
-  "model_version": "calypso-4.1e",
-  "folder": "calypso_4_1_e",
+  "name": "odyseus",
+  "model_version": "odyseus-4.1e",
+  "folder": "odyseus",
   "entrypoint": "serve.py",
   "monitor": "monitor.py",
   "eval": "eval.py",
@@ -11,5 +11,5 @@
   "train_args": ["--train-only"],
   "heartbeat_file": "cache/heartbeat.json",
   "log_file": "logs/live.log",
-  "description": "Calypso 4.1.e = Arquitectura modular preparada per optimització iterativa sobre Calypso 4.1, orientada a conversió efectiva amb perfils JSON hot-reloadables."
+  "description": "Odyseus (basat en Calypso 4.1.e) = Sistema d'optimitzacio iterativa offline/online sobre perfils JSON hot-reloadables orientat a maximitzar la conversio."
 }
