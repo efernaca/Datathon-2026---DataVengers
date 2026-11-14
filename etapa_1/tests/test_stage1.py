@@ -137,6 +137,12 @@ class TestStage1EndToEnd(unittest.TestCase):
         # Duplicate batch should be skipped by seen window
         self.assertEqual(loop.answer_batch(batch), [])
 
+    def test_config_from_env_loads_credentials(self) -> None:
+        cfg = Config.from_env()
+        self.assertTrue(cfg.api_url.startswith("https://"))
+        self.assertTrue(bool(cfg.team_id))
+        self.assertTrue(bool(cfg.api_key))
+
 
 if __name__ == "__main__":
     unittest.main()
