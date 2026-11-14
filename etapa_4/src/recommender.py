@@ -1,7 +1,6 @@
 """Slot-Gated Calypso-2.1 recommender with precomputed static item vectors (<1 ms/req)."""
 from __future__ import annotations
 
-import heapq
 import math
 import time
 from collections import defaultdict
@@ -868,13 +867,17 @@ class CalypsoRecommenderV4:
         product_static = snapshot.product_static
         has_aff = bool(affinity_map)
 
-        # Compute split (precision_score, explore_score, subcat, brand, is_new_flag) per candidate
+        # Compute split (precision_score, explore_score, subcat, brand, is_new, confirmed_cold)
         n_cands = len(candidates)
         prec_scores = [0.0] * n_cands
         full_scores = [0.0] * n_cands
         cand_subcats = [""] * n_cands
         cand_brands = [""] * n_cands
         cand_is_new = [False] * n_cands
+        cand_confirmed_cold = [False] * n_cands
+
+        subcat_bonus_w = max(w12, 0.28)
+        brand_bonus_w = max(w13, 0.12)
 
         for idx, pid in enumerate(candidates):
             s_seq = seq_scores.get(pid, 0.0)
@@ -903,28 +906,41 @@ class CalypsoRecommenderV4:
                     z2 = z * z
                     s_pcompat = math.exp(-0.5 * (z2 if z2 < 6.0 else 6.0))
 
+                same_sc = bool(anchor_subcat and sc == anchor_subcat)
+                same_br = bool(anchor_brand and br == anchor_brand)
+                bg_score = w5 * s_ctx + w6 * gpop + w7 * ltrend + exploit_d
+                if (
+                    has_session_intent
+                    and not same_sc
+                    and s_seq == 0.0
+                    and s_intent == 0.0
+                    and s_fwd == 0.0
+                    and s_self == 0.0
+                ):
+                    bg_score *= 0.25
+
                 score_p = (
                     w0 * s_seq
                     + w1 * s_self
                     + w2 * s_intent
                     + w3 * s_aff
                     + w4 * s_pcompat
-                    + w5 * s_ctx
-                    + w6 * gpop
-                    + w7 * ltrend
+                    + bg_score
                     + w8 * is_new_f
                     + w9 * s_rev
                     + w10 * s_fwd
                     + w11 * lp_norm
-                    + (w12 if (anchor_subcat and sc == anchor_subcat) else 0.0)
-                    + (w13 if (anchor_brand and br == anchor_brand) else 0.0)
-                    + exploit_d
+                    + (subcat_bonus_w if same_sc else 0.0)
+                    + (brand_bonus_w if same_br else 0.0)
                 )
                 prec_scores[idx] = score_p
                 full_scores[idx] = score_p + ucb_b
                 cand_subcats[idx] = sc
                 cand_brands[idx] = br
-                cand_is_new[idx] = is_new_f > 0.5
+                is_n = is_new_f > 0.5
+                cand_is_new[idx] = is_n
+                if is_n and s_rev > 0.35 and exploit_d > 0.02:
+                    cand_confirmed_cold[idx] = True
             else:
                 gpop = snapshot.global_pop_norm.get(pid, 0.0)
                 ltrend = snapshot.live_trend_norm.get(pid, 0.0)
@@ -954,82 +970,59 @@ class CalypsoRecommenderV4:
         brand_counts: dict[str, int] = defaultdict(int)
         selected: list[str] = []
 
-        cold_gate = 2 if is_cold_session else self.config.cold_explore_start_slot_warm
+        cold_gate = 0 if is_cold_session else self.config.cold_explore_start_slot_warm
         max_cold_warm = self.config.max_cold_explore_in_warm
         new_picked_count = 0
 
-        # Protect early top slots (0..min(cold_gate, mmr_start)) with pure precision scores
-        pure_end = min(k, n_cands, cold_gate, mmr_start)
-        if False:
-            top_idx = heapq.nlargest(min(k, n_cands), range(n_cands), key=full_scores.__getitem__)
-            selected = [candidates[i] for i in top_idx]
-        else:
-            # Slot-by-slot greedy selection protecting WARM & slot-1 precision from UCB noise
-            pure_prec_indices = sorted(range(n_cands), key=prec_scores.__getitem__, reverse=True)
-            p_cursor = 0
-            for _ in range(pure_end):
-                while p_cursor < n_cands:
-                    cand_i = pure_prec_indices[p_cursor]
-                    p_cursor += 1
-                    if picked[cand_i]:
-                        continue
-                    # Keep top WARM slots pure warm; in cold sessions also avoid unconfirmed new items at slot 0-1
-                    if cand_is_new[cand_i]:
-                        continue
-                    picked[cand_i] = True
-                    selected.append(candidates[cand_i])
-                    if cand_subcats[cand_i]:
-                        subcat_counts[cand_subcats[cand_i]] += 1
-                    if cand_brands[cand_i]:
-                        brand_counts[cand_brands[cand_i]] += 1
+        target_k = min(k, n_cands)
+        while len(selected) < target_k:
+            slot_pos = len(selected)
+            allow_ucb = is_cold_session or slot_pos >= cold_gate
+            allow_new = is_cold_session or (allow_ucb and new_picked_count < max_cold_warm)
+            apply_mmr = slot_pos >= mmr_start
+
+            best_idx = -1
+            best_val = -1e18
+            for idx in range(n_cands):
+                if picked[idx]:
+                    continue
+                is_n = cand_is_new[idx]
+                confirmed_cold = cand_confirmed_cold[idx]
+                if (
+                    is_n
+                    and not allow_new
+                    and not (slot_pos >= 4 and confirmed_cold and new_picked_count < max_cold_warm)
+                ):
+                    continue
+                val = full_scores[idx] if (allow_ucb or confirmed_cold) else prec_scores[idx]
+                if apply_mmr:
+                    sc = cand_subcats[idx]
+                    br = cand_brands[idx]
+                    if sc and subcat_lam > 0.0:
+                        val -= subcat_lam * subcat_counts[sc]
+                    if br and brand_lam > 0.0:
+                        val -= brand_lam * brand_counts[br]
+                if val > best_val:
+                    best_val = val
+                    best_idx = idx
+
+            if best_idx < 0:
+                # Fallback if only cold items remain and cap was reached
+                for idx in range(n_cands):
+                    if not picked[idx] and full_scores[idx] > best_val:
+                        best_val = full_scores[idx]
+                        best_idx = idx
+                if best_idx < 0:
                     break
 
-            target_k = min(k, n_cands)
-            while len(selected) < target_k:
-                slot_pos = len(selected)
-                allow_ucb = slot_pos >= cold_gate
-                allow_new = is_cold_session or (
-                    allow_ucb and new_picked_count < max_cold_warm
-                )
-                apply_mmr = slot_pos >= mmr_start
-
-                best_idx = -1
-                best_val = -1e18
-                for idx in range(n_cands):
-                    if picked[idx]:
-                        continue
-                    is_n = cand_is_new[idx]
-                    if is_n and not allow_new:
-                        continue
-                    val = full_scores[idx] if allow_ucb else prec_scores[idx]
-                    if apply_mmr:
-                        sc = cand_subcats[idx]
-                        br = cand_brands[idx]
-                        if sc and subcat_lam > 0.0:
-                            val -= subcat_lam * subcat_counts[sc]
-                        if br and brand_lam > 0.0:
-                            val -= brand_lam * brand_counts[br]
-                    if val > best_val:
-                        best_val = val
-                        best_idx = idx
-
-                if best_idx < 0:
-                    # Fallback if only cold items remain and cap was reached
-                    for idx in range(n_cands):
-                        if not picked[idx]:
-                            best_idx = idx
-                            break
-                    if best_idx < 0:
-                        break
-
-                picked[best_idx] = True
-                selected.append(candidates[best_idx])
-                if cand_is_new[best_idx]:
-                    new_picked_count += 1
-                if cand_subcats[best_idx]:
-                    subcat_counts[cand_subcats[best_idx]] += 1
-                if cand_brands[best_idx]:
-                    brand_counts[cand_brands[best_idx]] += 1
+            picked[best_idx] = True
+            selected.append(candidates[best_idx])
+            if cand_is_new[best_idx]:
+                new_picked_count += 1
+            if cand_subcats[best_idx]:
+                subcat_counts[cand_subcats[best_idx]] += 1
+            if cand_brands[best_idx]:
+                brand_counts[cand_brands[best_idx]] += 1
 
         return ensure_valid_submission(
             selected,
