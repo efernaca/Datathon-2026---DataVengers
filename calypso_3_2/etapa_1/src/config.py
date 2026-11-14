@@ -44,7 +44,7 @@ class Config:
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "calypso-3.1"
+    model_version: str = "calypso-3.2"
 
     # --- Bucle rápido (F1–F3) ---
     poll_interval_sec: float = 0.15

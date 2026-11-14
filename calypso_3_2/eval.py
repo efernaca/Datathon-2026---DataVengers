@@ -1,4 +1,4 @@
-"""Encapsulated entrypoint for Calypso 3.1 unified 5-way offline benchmark."""
+"""Encapsulated entrypoint for Calypso 3.2 unified 5-way offline benchmark."""
 from __future__ import annotations
 
 import sys

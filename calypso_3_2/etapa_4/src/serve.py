@@ -42,7 +42,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("calypso3_1.serve")
+logger = logging.getLogger("calypso3_2.serve")
 
 
 def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
@@ -143,7 +143,9 @@ SQL_USER_INTENT = """
 SELECT user_id::String AS user_id,
        product_id::String AS product_id,
        (countIf(event_type::String = 'add_to_cart') * 3.0 +
-        countIf(event_type::String = 'view') * 0.5) AS intent_score
+        countIf(event_type::String = 'view') * 0.5) *
+       exp(-greatest(dateDiff('second', max(ts::DateTime64(3)),
+           (SELECT max(ts::DateTime64(3)) FROM shop.history_events)) / 86400.0, 0.0) * 0.693 / 7.0) AS intent_score
 FROM shop.history_events
 GROUP BY user_id, product_id
 HAVING countIf(event_type::String = 'purchase') = 0
@@ -550,7 +552,7 @@ class CalypsoFastLoopV4:
         self._seen_queue: deque[str] = deque(maxlen=5000)
         self._seen_set: set[str] = set()
         self._sql_pull_fresh = (
-            f"SELECT request_id, user_id, is_new_user, context, recent_views "
+            f"SELECT request_id, user_id, is_new_user, context, recent_views, ts "
             f"FROM shop.requests "
             f"WHERE ts::DateTime64(3) >= "
             f"(SELECT max(ts::DateTime64(3)) FROM shop.requests) "
@@ -558,7 +560,7 @@ class CalypsoFastLoopV4:
             f"ORDER BY ts ASC LIMIT {int(config.max_requests_per_batch)}"
         )
         self._sql_pull_fallback = (
-            f"SELECT request_id, user_id, is_new_user, context, recent_views "
+            f"SELECT request_id, user_id, is_new_user, context, recent_views, ts "
             f"FROM shop.requests ORDER BY ts DESC LIMIT {min(12, int(config.max_requests_per_batch))}"
         )
 
@@ -754,7 +756,7 @@ def run_watchdog(pass_through_args: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calypso 3.1 Encapsulated Real-Time Recommender Service")
+    parser = argparse.ArgumentParser(description="Calypso 3.2 Encapsulated Real-Time Recommender Service")
     parser.add_argument("--self-check", action="store_true", help="Run fast pre-flight verification and exit")
     parser.add_argument("--dry-run", action="store_true", help="Run local dry-run with disk cache")
     parser.add_argument("--train-only", action="store_true", help="Train fresh snapshot + ML ranker + EASE to disk cache and exit")
@@ -817,9 +819,9 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
-                "model_name": "calypso 3.1",
+                "model_name": "calypso 3.2",
                 "model_version": cfg.model_version,
-                "folder": "calypso_3_1",
+                "folder": "calypso_3_2",
                 "started_at": started_at,
                 "last_heartbeat_ts": time.time(),
                 "ready": ready,
@@ -863,7 +865,7 @@ def main() -> None:
         recommender=CalypsoRecommenderV4(cfg),
         config=cfg,
     )
-    logger.info("Calypso 3.1 LIVE (team=%s, model=%s, pid=%d)", cfg.team_id, cfg.model_version, pid)
+    logger.info("Calypso 3.2 LIVE (team=%s, model=%s, pid=%d)", cfg.team_id, cfg.model_version, pid)
 
     submitted_total = 0
     last_batch_size = 0
@@ -879,7 +881,7 @@ def main() -> None:
                 last_batch_size = answered
                 logger.info("[%s] Submitted %d fresh answers", cfg.model_version, answered)
         except Exception as exc:
-            logger.error("Calypso 3.1 FastLoop error: %s", exc)
+            logger.error("Calypso 3.2 FastLoop error: %s", exc)
             time.sleep(0.35)
 
         now_t = time.time()

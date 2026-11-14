@@ -1,4 +1,4 @@
-"""Closed-form EASE (Embarrassingly Shallow Autoencoders) item-item matrix for Calypso 3.1."""
+"""Closed-form EASE (Embarrassingly Shallow Autoencoders) item-item matrix for Calypso 3.2."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Set as AbstractSet
