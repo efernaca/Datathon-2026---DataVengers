@@ -1,4 +1,4 @@
-"""Bidirectional Cold Start semantic index (TF-IDF + TruncatedSVD + attributes)."""
+"""Bidirectional Cold Start semantic index (TF-IDF + TruncatedSVD + attributes) with N7 fixes."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -11,6 +11,8 @@ from sklearn.preprocessing import normalize
 
 if TYPE_CHECKING:
     from .state import ProductInfo
+
+_SIM_WEIGHT_TOTAL = 1.0 + 0.35 + 0.15 + 0.12 + 0.15
 
 
 class ColdStartIndexV4:
@@ -108,6 +110,10 @@ class ColdStartIndexV4:
                 row += 0.12 * (self._warm_brands == p.brand)
             q_log_p = float(np.log1p(max(p.price_eur, 0.0)))
             row += 0.15 * np.exp(-np.abs(self._warm_log_prices - q_log_p))
+            row /= _SIM_WEIGHT_TOTAL
+            if p.category:
+                row = np.where(self._warm_cats == p.category, row, 0.0)
+                sim[idx] = row
 
         return sim
 
@@ -118,13 +124,14 @@ class ColdStartIndexV4:
         *,
         top_k_forward: int = 8,
         top_k_reverse: int = 3,
-        min_reverse_ratio: float = 0.65,
-        min_similarity: float = 0.08,
+        min_reverse_sim: float = 0.45,
+        reverse_same_subcat: bool = True,
+        min_similarity: float = 0.15,
     ) -> tuple[
         dict[str, tuple[tuple[str, float], ...]],
         dict[str, tuple[tuple[str, float], ...]],
     ]:
-        """Compute forward (cold/sparse -> warm) and reverse (warm -> new_product) maps."""
+        """Compute forward (cold/sparse -> warm) and reverse (warm -> new_product) maps (N7)."""
         if self._warm_sparse is None or not self._warm_ids:
             return {}, {}
 
@@ -156,7 +163,6 @@ class ColdStartIndexV4:
                 top_idx = np.argsort(row)[::-1]
 
             neighbors: list[tuple[str, float]] = []
-            max_val = 0.0
             for j in top_idx:
                 nb_id = self._warm_ids[int(j)]
                 if nb_id == p.product_id:
@@ -164,9 +170,7 @@ class ColdStartIndexV4:
                 val = float(row[int(j)])
                 if val < min_similarity:
                     continue
-                if not neighbors:
-                    max_val = val
-                neighbors.append((nb_id, val / max(max_val, 0.25)))
+                neighbors.append((nb_id, min(max(val, 0.0), 1.0)))
                 if len(neighbors) >= top_k_forward:
                     break
             forward_map[p.product_id] = tuple(neighbors)
@@ -185,20 +189,15 @@ class ColdStartIndexV4:
                     else np.arange(n_new)
                 )
                 top_n = top_n[np.argsort(scores[top_n])[::-1]]
-                max_s = float(scores[top_n[0]]) if len(top_n) else 0.0
-                if max_s < min_similarity:
-                    continue
                 attached: list[tuple[str, float]] = []
                 for n_idx in top_n:
                     val = float(scores[int(n_idx)])
-                    if val < min_similarity:
+                    if val < min_reverse_sim:
                         continue
                     new_p = new_list[int(n_idx)]
-                    if new_p.subcategory != self._warm_subcats[w_idx] and val < max_s * 0.9:
+                    if reverse_same_subcat and new_p.subcategory != self._warm_subcats[w_idx]:
                         continue
-                    norm_s = val / max(max_s, 0.25)
-                    if norm_s >= min_reverse_ratio:
-                        attached.append((new_p.product_id, norm_s))
+                    attached.append((new_p.product_id, min(max(val, 0.0), 1.0)))
                 if attached:
                     reverse_map[warm_pid] = tuple(attached)
 

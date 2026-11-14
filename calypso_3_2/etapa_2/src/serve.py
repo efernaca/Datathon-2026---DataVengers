@@ -474,5 +474,8 @@ def main() -> None:
         time.sleep(cfg.poll_interval_sec)
 
 
+from .serve_e2esp import IncrementalReader, Service, SignalLogger, fmt_ts  # noqa: E402, F401
+
+
 if __name__ == "__main__":
     main()

@@ -1,0 +1,10 @@
+{
+  "state": "completed",
+  "action": "train_and_activate",
+  "target_folder": "calypso_2_1",
+  "target_name": "calypso 2.1",
+  "progress": 100,
+  "message": "Model 'calypso_2_1' (calypso-2.1) actiu amb PID 7788 en 82.4s (Heartbeat llest (PID 7788, snapshot v1)). Aturats: cap.",
+  "started_at": 1794676109.3335402,
+  "updated_at": 1794676191.74625
+}

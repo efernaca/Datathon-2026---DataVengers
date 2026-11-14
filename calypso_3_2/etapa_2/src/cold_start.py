@@ -1,16 +1,118 @@
-"""Bidirectional Cold Start index (TF-IDF + TruncatedSVD + structured attributes)."""
+"""Bidirectional Cold Start index (TF-IDF + TruncatedSVD + structured attributes) with N7 fixes."""
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import scipy.sparse as sp
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 
 if TYPE_CHECKING:
     from .state import ProductInfo
+
+_SIM_WEIGHT_TOTAL = 1.0 + 0.35 + 0.15 + 0.12 + 0.15
+
+
+@dataclass(frozen=True)
+class SimWeights:
+    """Component weights for Etapa 2 Especial absolute content similarity."""
+
+    text: float = 1.0
+    subcat: float = 0.35
+    cat: float = 0.15
+    brand: float = 0.10
+    price: float = 0.15
+
+    @property
+    def total(self) -> float:
+        return self.text + self.subcat + self.cat + self.brand + self.price
+
+
+def product_text(row: Mapping[str, Any]) -> str:
+    return " ".join(
+        str(row.get(k, "") or "") for k in ("category", "subcategory", "brand", "description")
+    ).strip()
+
+
+class ContentIndex:
+    """Fast incremental TF-IDF encoder used by Etapa 2 Especial CatalogManager."""
+
+    def __init__(self, max_features: int = 8192) -> None:
+        self.vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            ngram_range=(1, 2),
+            min_df=1,
+            sublinear_tf=True,
+        )
+        self.fitted = False
+
+    def fit(self, rows: Sequence[Mapping[str, Any]]) -> ContentIndex:
+        texts = [product_text(r) for r in rows] or ["empty"]
+        self.vectorizer.fit(texts)
+        self.fitted = True
+        return self
+
+    def transform(self, rows: Sequence[Mapping[str, Any]]) -> sp.csr_matrix:
+        if not rows:
+            return sp.csr_matrix((0, len(self.vectorizer.vocabulary_)), dtype=np.float32)
+        return (
+            self.vectorizer.transform([product_text(r) for r in rows])
+            .astype(np.float32)
+            .tocsr()
+        )
+
+
+def content_neighbors(
+    q_vecs: sp.csr_matrix,
+    q_cat: np.ndarray,
+    q_subcat: np.ndarray,
+    q_brand: np.ndarray,
+    q_logp: np.ndarray,
+    pool_vecs: sp.csr_matrix,
+    pool_cat: np.ndarray,
+    pool_subcat: np.ndarray,
+    pool_brand: np.ndarray,
+    pool_logp: np.ndarray,
+    *,
+    top_k: int = 8,
+    min_sim: float = 0.15,
+    same_category: bool = True,
+    weights: SimWeights = SimWeights(),
+    exclude_pool_idx: Sequence[int] | None = None,
+) -> list[list[tuple[int, float]]]:
+    """Absolute similarity in [0, 1] for query items against warm catalog pool (N7)."""
+    if q_vecs.shape[0] == 0 or pool_vecs.shape[0] == 0:
+        return [[] for _ in range(q_vecs.shape[0])]
+    cos = (
+        (q_vecs @ pool_vecs.T).toarray()
+        if weights.text
+        else np.zeros((q_vecs.shape[0], pool_vecs.shape[0]))
+    )
+    out: list[list[tuple[int, float]]] = []
+    for r in range(q_vecs.shape[0]):
+        s = weights.text * cos[r]
+        s = s + weights.subcat * (pool_subcat == q_subcat[r])
+        s = s + weights.cat * (pool_cat == q_cat[r])
+        s = s + weights.brand * (pool_brand == q_brand[r])
+        s = s + weights.price * np.exp(-np.abs(pool_logp - q_logp[r]))
+        s = s / weights.total
+        if same_category:
+            s = np.where(pool_cat == q_cat[r], s, -1.0)
+        if (
+            exclude_pool_idx is not None
+            and exclude_pool_idx[r] is not None
+            and exclude_pool_idx[r] >= 0
+        ):
+            s[exclude_pool_idx[r]] = -1.0
+        k = min(top_k, len(s))
+        top = np.argpartition(-s, k - 1)[:k]
+        top = top[np.argsort(-s[top])]
+        out.append([(int(j), float(s[j])) for j in top if s[j] >= min_sim])
+    return out
 
 
 class ColdStartIndexV2:
@@ -109,6 +211,10 @@ class ColdStartIndexV2:
                 row += 0.12 * (self._warm_brands == p.brand)
             q_log_p = float(np.log1p(max(p.price_eur, 0.0)))
             row += 0.15 * np.exp(-np.abs(self._warm_log_prices - q_log_p))
+            row /= _SIM_WEIGHT_TOTAL
+            if p.category:
+                row = np.where(self._warm_cats == p.category, row, 0.0)
+                sim[idx] = row
 
         return sim
 
@@ -119,20 +225,20 @@ class ColdStartIndexV2:
         *,
         top_k_forward: int = 8,
         top_k_reverse: int = 3,
-        min_reverse_ratio: float = 0.65,
-        min_similarity: float = 0.08,
+        min_reverse_sim: float = 0.45,
+        reverse_same_subcat: bool = True,
+        min_similarity: float = 0.15,
     ) -> tuple[
         dict[str, tuple[tuple[str, float], ...]],
         dict[str, tuple[tuple[str, float], ...]],
     ]:
-        """Compute forward (cold/sparse -> warm) and reverse (warm -> new_product) maps."""
+        """Compute forward (cold/sparse -> warm) and reverse (warm -> new_product) maps (N7)."""
         if self._warm_sparse is None or not self._warm_ids:
             return {}, {}
 
         fwd_list = list(forward_targets)
         new_list = [p for p in new_products if p.is_active]
 
-        # Build union of targets to compute similarity matrix in one vectorized pass
         seen_pids: set[str] = set()
         union_targets: list[ProductInfo] = []
         for p in fwd_list + new_list:
@@ -158,7 +264,6 @@ class ColdStartIndexV2:
                 top_idx = np.argsort(row)[::-1]
 
             neighbors: list[tuple[str, float]] = []
-            max_val = 0.0
             for j in top_idx:
                 nb_id = self._warm_ids[int(j)]
                 if nb_id == p.product_id:
@@ -166,9 +271,8 @@ class ColdStartIndexV2:
                 val = float(row[int(j)])
                 if val < min_similarity:
                     continue
-                if not neighbors:
-                    max_val = val
-                neighbors.append((nb_id, val / max(max_val, 0.25)))
+                # N7: keep absolute similarity in [0, 1] rather than max-normalizing weak items to 1.0
+                neighbors.append((nb_id, min(max(val, 0.0), 1.0)))
                 if len(neighbors) >= top_k_forward:
                     break
             forward_map[p.product_id] = tuple(neighbors)
@@ -176,7 +280,6 @@ class ColdStartIndexV2:
         reverse_map: dict[str, tuple[tuple[str, float], ...]] = {}
         if new_list:
             new_row_indices = [pid_to_row[p.product_id] for p in new_list]
-            # Shape: (n_new, n_warm) -> transpose to (n_warm, n_new)
             warm_to_new_mat = sim_mat[new_row_indices].T
             n_new = len(new_list)
             k_r = min(top_k_reverse, n_new)
@@ -188,21 +291,15 @@ class ColdStartIndexV2:
                     else np.arange(n_new)
                 )
                 top_n = top_n[np.argsort(scores[top_n])[::-1]]
-                max_s = float(scores[top_n[0]]) if len(top_n) else 0.0
-                if max_s < min_similarity:
-                    continue
                 attached: list[tuple[str, float]] = []
                 for n_idx in top_n:
                     val = float(scores[int(n_idx)])
-                    if val < min_similarity:
+                    if val < min_reverse_sim:
                         continue
                     new_p = new_list[int(n_idx)]
-                    # Only graft if strong structural/semantic affinity
-                    if new_p.subcategory != self._warm_subcats[w_idx] and val < max_s * 0.9:
+                    if reverse_same_subcat and new_p.subcategory != self._warm_subcats[w_idx]:
                         continue
-                    norm_s = val / max(max_s, 0.25)
-                    if norm_s >= min_reverse_ratio:
-                        attached.append((new_p.product_id, norm_s))
+                    attached.append((new_p.product_id, min(max(val, 0.0), 1.0)))
                 if attached:
                     reverse_map[warm_pid] = tuple(attached)
 

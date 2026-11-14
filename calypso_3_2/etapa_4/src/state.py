@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(frozen=True, slots=True)
 class ProductInfo:
-    """Active or inactive catalog item metadata."""
+    """Active or inactive catalog item metadata (including initial price for V6)."""
 
     product_id: str
     category: str
@@ -18,6 +18,15 @@ class ProductInfo:
     description: str
     is_active: bool
     is_new: bool = False
+    initial_price_eur: float = 0.0
+
+    @property
+    def discount_pct(self) -> float:
+        """Relative price drop from initial catalog price, clipped to [0, 0.9] (V6)."""
+        if self.initial_price_eur <= 0.0 or self.price_eur >= self.initial_price_eur:
+            return 0.0
+        drop = (self.initial_price_eur - self.price_eur) / self.initial_price_eur
+        return min(max(drop, 0.0), 0.9)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,9 +112,9 @@ class RecommenderSnapshotV4:
     revenue_fallback: tuple[str, ...]
 
     # Precomputed per-active-item FastLoop tuples:
-    # (subcat, brand, global_pop, live_trend, is_new_f, log_price_norm, exploit_delta, ucb_bonus)
+    # (subcat, brand, global_pop, live_trend, is_new_f, log_price_norm, exploit_delta, ucb_bonus, discount_pct)
     product_static: dict[
-        str, tuple[str, str, float, float, float, float, float, float]
+        str, tuple[str, str, float, float, float, float, float, float, float]
     ] = field(default_factory=dict)
 
     bandit_state: BanditState = field(default_factory=BanditState)

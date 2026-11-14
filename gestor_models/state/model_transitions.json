@@ -1,0 +1,16 @@
+[
+  {
+    "ts": "2026-11-14T17:09:51+00:00",
+    "action": "train_and_activate",
+    "from_folders": [
+      "calypso_3_1"
+    ],
+    "to_folder": "calypso_2_1",
+    "model_version": "calypso-2.1",
+    "pid": 7788,
+    "stopped_pids": [],
+    "elapsed_s": 82.4,
+    "status": "ok",
+    "detail": "Heartbeat llest (PID 7788, snapshot v1)"
+  }
+]

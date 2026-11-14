@@ -45,12 +45,12 @@ def load_dotenv_files() -> None:
 
 @dataclass(frozen=True, slots=True)
 class ConfigV4:
-    """Immutable configuration for Stage 4 (calypso-3.1 unified)."""
+    """Immutable configuration for Stage 4 (calypso-3.2 unified + Stage 2 Especial N6-N13)."""
 
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "calypso-3.1"
+    model_version: str = "calypso-3.2"
 
     # SLA-hardened Fast / Live / Stock cadence timings
     poll_interval_s: float = 0.12
@@ -61,11 +61,13 @@ class ConfigV4:
     max_request_age_ms: int = 2400
     cache_dir: str = "cache"
 
-    # Fast candidate retrieval & sequential scoring
+    # Fast candidate retrieval & sequential scoring (with Stage 2 Especial N6-N13)
     candidate_pool_size: int = 64
-    recency_decay: float = 0.65
+    recency_decay: float = 0.72
+    recent_halflife_sec: float = 624.0
     lift_beta: float = 0.45
     lift_prior_pop: float = 30.0
+    ctx_kappa: float = 50.0
     self_view_weight: float = 1.80
     intent_weight: float = 0.50
     affinity_weight: float = 0.25
@@ -73,8 +75,11 @@ class ConfigV4:
     ctx_bayes_weight: float = 0.30
     global_pop_weight: float = 0.22
     live_trend_weight: float = 0.25
+    weight_price_drop: float = 0.18
     weight_forward_cold: float = 0.48
     weight_reverse_cold_graft: float = 0.30
+    reverse_min_sim: float = 0.45
+    reverse_same_subcat: bool = True
 
     # Slot-Gated ML Re-Ranker & Position-Aware Bandit
     ml_max_blend_alpha: float = 0.45
@@ -87,12 +92,13 @@ class ConfigV4:
     cold_explore_start_slot_warm: int = 7
     max_cold_explore_in_warm: int = 2
 
-    # Diversity / MMR guardrails
+    # Diversity / Relative MMR (N10) & Lexicographic Revenue Tie-Break (N9)
     mmr_start_slot_session: int = 5
     mmr_start_slot_home: int = 3
     mmr_subcat_lambda_session: float = 0.0
     mmr_subcat_lambda_home: float = 0.15
     mmr_brand_lambda: float = 0.04
+    revenue_eps: float = 0.015
     revenue_tie_weight: float = 0.03
 
     # Cold-start graph limits
