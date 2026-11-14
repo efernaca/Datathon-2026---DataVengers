@@ -1,6 +1,6 @@
 # Etapa 2 · Recomanador Seqüencial Híbrid, Personalització Profunda i *Cold Start* Bidireccional
 
-**Versió del model:** `etapa2-seq-mmr-v1`  
+**Versió del model:** `calypso-2.1`  
 **Objectiu:** Fer un salt qualitatiu sobre el model base de l'Etapa 1 atacant les quatre fonts principals de conversió del simulador ocult: **intenció seqüencial real (amb correcció per popularitat *Lift*)**, **memòria profunda d'usuari (cistelles abandonades, marca i sensibilitat al preu)**, **descobriment actiu de productes nous (*Bidirectional Graph Grafting*)** i **diversificació conscient d'ingressos (*Revenue-Aware MMR*)**.
 
 ---
