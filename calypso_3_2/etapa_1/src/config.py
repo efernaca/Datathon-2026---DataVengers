@@ -15,7 +15,7 @@ REPO_DIR = ETAPA_DIR.parent
 
 def load_dotenv_files() -> list[Path]:
     """Carga pares clave=valor sin sobrescribir variables ya definidas."""
-    search_dirs = [Path.cwd(), ETAPA_DIR, REPO_DIR, REPO_DIR / "datathon-fme-2026-main"]
+    search_dirs = [Path.cwd(), ETAPA_DIR, REPO_DIR, REPO_DIR.parent, REPO_DIR / "datathon-fme-2026-main"]
     loaded: list[Path] = []
     seen: set[Path] = set()
     for d in search_dirs:
@@ -44,7 +44,7 @@ class Config:
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "etapa1-especial"
+    model_version: str = "calypso-3.1"
 
     # --- Bucle rápido (F1–F3) ---
     poll_interval_sec: float = 0.15
