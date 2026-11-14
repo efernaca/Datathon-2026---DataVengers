@@ -1,10 +1,10 @@
 {
-  "state": "training",
+  "state": "completed",
   "action": "train_and_activate",
-  "target_folder": "calypso_3_2",
-  "target_name": "calypso 3.2",
-  "progress": 40,
-  "message": "Entrenant 'calypso_3_2' en segon pla (el model en viu no s'atura)...",
-  "started_at": 1794678507.351417,
-  "updated_at": 1794678518.563948
+  "target_folder": "calypso_4_1",
+  "target_name": "calypso 4.1",
+  "progress": 100,
+  "message": "Model 'calypso_4_1' (calypso-4.1) actiu amb PID 23700 en 98.8s (Heartbeat llest (PID 23700, snapshot v1)). Aturats: [11064].",
+  "started_at": 1794682132.7554991,
+  "updated_at": 1794682231.627642
 }
