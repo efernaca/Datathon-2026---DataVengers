@@ -1,0 +1,16 @@
+{
+  "pid": 12768,
+  "model_name": "calypso 5.1",
+  "model_version": "calypso-5.1",
+  "folder": "calypso_5_1",
+  "profile": "conversion_first",
+  "started_at": 1794692583.9827275,
+  "last_heartbeat_ts": 1794692871.6738079,
+  "ready": true,
+  "snapshot_version": 20,
+  "active_products": 5263,
+  "ml_alpha": 0.0913,
+  "regime": "cold_surge",
+  "submitted_total": 854,
+  "last_batch_size": 5
+}
