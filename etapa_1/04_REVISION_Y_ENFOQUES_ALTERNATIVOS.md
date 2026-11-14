@@ -12,21 +12,21 @@
 
 La arquitectura de la Etapa 1 es buena: bucle rápido en memoria, snapshot inmutable, guardrails deterministas y el mismo `recommend()` en offline y en vivo. No hay que rehacerla. Los problemas están en otro sitio:
 
-1. **La clave de la API está en el repositorio** (`group_API.env` está versionado). Hay que rotarla hoy.
+1. **`serve.py` no encuentra las credenciales tal como están guardadas**: busca un `.env` y el fichero se llama `group_API.env`.
 2. **El sistema no se ha validado nunca con datos reales.** `eval.py` solo corre contra un simulador sintético escrito por nosotros, que genera los datos con las mismas hipótesis que el recomendador explota. Que "gane al baseline" ahí no dice nada sobre el simulador de los organizadores.
 3. **Hay cuatro fallos que cuestan puntos directamente**: los productos nuevos tardan hasta 3 minutos en existir para el sistema (cold start), el stock deja de refrescarse durante cada recarga completa (fiabilidad), el peor caso del ciclo supera los 3 s (fiabilidad) y el historial del usuario solo se usa para excluir compras (conversión).
 4. **El enfoque de fondo es mejorable.** Ahora mismo es una suma de 12 pesos puestos a mano. `shop.history_sessions` son 2 M de listas mostradas con su resultado, generadas por *el mismo modelo oculto que nos puntúa*: lo más rentable es aprender ese modelo directamente (sección 4, enfoque A).
 5. **Sobra presupuesto de cómputo.** Usamos ~0,3 ms de los ~1.500 ms disponibles por petición. Podemos puntuar los 5.000 productos en cada petición en lugar de ~100 candidatos.
 
-Orden recomendado: sección 2 (hoy, 1 h) → sección 3 fiabilidad y cold start (2–3 h) → EDA real (1–2 h) → enfoque A con el C como apoyo → adaptación en vivo (D). El plan con horas está en la sección 6.
+Orden recomendado: sección 2 (hoy, 30 min) → sección 3 fiabilidad y cold start (2–3 h) → EDA real (1–2 h) → enfoque A con el C como apoyo → adaptación en vivo (D). El plan con horas está en la sección 6.
 
 ---
 
-## 2. Urgente: seguridad y puesta en marcha
+## 2. Puesta en marcha y limpieza del repositorio
 
 | # | Qué pasa | Qué hacer |
 |---|---|---|
-| U1 | `group_API.env` (con `TEAM_ID` y `RAWTREE_API_KEY`) está en git y subido a GitHub. Las bases dicen "Do not share keys"; con esa clave cualquiera puede escribir en nuestro `submissions`. | Pedir una clave nueva en el stand de RawTree. `git rm --cached group_API.env`, añadirlo a un `.gitignore` en la raíz. Borrarlo del historial solo no basta: la clave antigua hay que darla por comprometida. |
+| U1 | `group_API.env` (con `TEAM_ID` y `RAWTREE_API_KEY`) está versionado. El repositorio es privado, así que hoy no hay exposición. Queda en el historial de git, y las bases dicen que los mejores equipos comparten el repositorio con el jurado. | Sin urgencia. Antes de abrir o compartir el repo: `git rm --cached group_API.env` y añadirlo al `.gitignore`. Si se llega a hacer público con el historial intacto, pedir entonces una clave nueva. |
 | U2 | `config.py` busca un fichero `.env`; `group_API.env` no está entre los candidatos, así que `serve.py` arranca sin credenciales y sale con error. | Renombrar a `.env` (ya ignorado por el `.gitignore` del starter, pero no por uno propio en la raíz: crearlo). |
 | U3 | No hay `.gitignore` en la raíz y `__pycache__/` está versionado. | `.gitignore` con `.env`, `*.env`, `__pycache__/`, `.venv/`, `.ipynb_checkpoints/`. |
 | U4 | `03_FUNCIONAMENT_ACTUAL.md` enlaza con `file:///c:/Users/Èric.../OneDrive...`: enlaces rotos en GitHub y con una ruta personal. | Sustituir por rutas relativas (`src/serve.py`). El jurado lee el repositorio. |
@@ -246,7 +246,7 @@ No doy ganancias en puntos por enfoque porque no hay datos para estimarlas. Las 
 
 | Franja (CET) | Trabajo | Resultado |
 |---|---|---|
-| Sáb 13:30–14:30 | U1–U3. Arrancar `serve.py` tal cual contra RawTree con supervisor (F6). | En el leaderboard, clave nueva, proceso que se reinicia solo. |
+| Sáb 13:30–14:30 | U2–U3. Arrancar `serve.py` tal cual contra RawTree con supervisor (F6). | En el leaderboard, con un proceso que se reinicia solo. |
 | Sáb 14:30–17:00 | F1–F5, C1, V2. En paralelo otra persona: EDA B1–B7 con resultados guardados. | ~100 % de respuestas a tiempo; productos nuevos visibles en < 2 s; reglas del simulador documentadas. |
 | Sáb 17:00–19:00 | Cargador de datos reales para `eval.py`. Enfoque C (EASE) y test C4. Alarma F7. | Primera comparación offline con datos reales; v2 desplegada. |
 | Sáb 19:00–23:00 | Enfoque A: dataset, entrenamiento, calibración, variante sin identidad. | v3 desplegada en una parte del tráfico. |
@@ -258,7 +258,7 @@ No doy ganancias en puntos por enfoque porque no hay datos para estimarlas. Las 
 
 ### Comprobaciones antes de las 10:00 del domingo
 
-- [ ] Clave rotada y fuera del repositorio.
+- [ ] Si el repo se va a compartir con el jurado: `group_API.env` fuera del índice de git.
 - [ ] Máquina enchufada, sin suspensión, con red estable; proceso bajo supervisor.
 - [ ] Histórico en caché de disco: reinicio completo en menos de 10 s.
 - [ ] Últimas 6 h: `served_by = 'team'` ≥ 99,5 % y p95 de `latency_ms` < 2.000.
