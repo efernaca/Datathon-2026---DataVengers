@@ -1,4 +1,4 @@
-"""Encapsulated CLI entrypoint for Calypso 4.1.e modular optimizer & preset tuner."""
+"""Encapsulated CLI entrypoint for Calypso 5.1 modular optimizer & preset tuner."""
 from __future__ import annotations
 
 import sys

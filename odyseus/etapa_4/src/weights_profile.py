@@ -1,4 +1,4 @@
-"""Centralized modular hyperparameter and preset profile for Calypso 4.1.e."""
+"""Centralized modular hyperparameter and preset profile for Calypso 5.1."""
 from __future__ import annotations
 
 import json
@@ -39,27 +39,27 @@ _SEGMENT_FIELD_MAP: dict[str, str] = {
 
 @dataclass(frozen=True, slots=True)
 class WeightsProfile:
-    """Hot-reloadable modular optimization profile for Calypso 4.1.e."""
+    """Hot-reloadable modular optimization profile for Calypso 5.1."""
 
     # Identification
     profile_name: str = "conversion_first"
-    description: str = "Prioritat absoluta a la conversió efectiva a compra (CVR/hit@10/DCG@10), sense biaix cap a productes cars."
+    description: str = "Calypso 5.1: Prioritat absoluta a la conversió efectiva a compra (taxa base M3, tendències 60m M4, pool 78 amb Top-14 vendes D3, cold-start X10, carret/recurrents per puntuació M6)."
 
     # 14 Prior Weights matching FEATURE_NAMES order
     w_seq_lift: float = 1.15
-    w_self_cvr_view: float = 1.90
-    w_intent_score: float = 0.60
-    w_user_affinity: float = 0.28
+    w_self_cvr_view: float = 2.10
+    w_intent_score: float = 0.62
+    w_user_affinity: float = 0.42
     w_price_compat: float = 0.22
-    w_ctx_bayes: float = 0.30
-    w_global_pop: float = 0.22
-    w_live_trend: float = 0.28
-    w_is_new_product: float = 0.02
-    w_reverse_graft: float = 0.32
-    w_forward_cold: float = 0.48
+    w_ctx_bayes: float = 0.36
+    w_global_pop: float = 0.44
+    w_live_trend: float = 0.32
+    w_is_new_product: float = 0.03
+    w_reverse_graft: float = 0.35
+    w_forward_cold: float = 0.50
     w_log_price_norm: float = 0.00
-    w_same_top_subcat: float = 0.14
-    w_same_top_brand: float = 0.05
+    w_same_top_subcat: float = 0.20
+    w_same_top_brand: float = 0.10
 
     # ML anchoring ratios
     min_prior_ratios: tuple[float, ...] = (
@@ -93,6 +93,7 @@ class WeightsProfile:
     price_cheap_asymmetry: float = 0.0
     revenue_tie_weight: float = 0.0
     tie_break_mode: str = "conversion"  # "conversion" | "cheap" | "revenue"
+    tie_break_eps: float = 0.012
 
     # Product profile & Cold-Start levers
     cold_sparse_cos_weight: float = 0.65
@@ -104,7 +105,27 @@ class WeightsProfile:
     cold_min_similarity: float = 0.08
     cold_norm_floor: float = 0.25
     cold_explore_start_slot_warm: int = 7
+    cold_explore_start_slot_cold: int = 0
     max_cold_explore_in_warm: int = 2
+    cold_neighbor_pop_prior_weight: float = 0.80
+
+    # Stage 5.1 Base-Rate, Candidate Pool & Conversion Signals
+    candidate_pool_size: int = 78
+    guaranteed_top_sellers_in_pool: int = 14
+    use_sales_rank_base_rate: bool = True
+    sales_rank_blend_weight: float = 0.32
+    live_pop_mix_weight: float = 0.45
+    transition_dest_pop_gamma: float = 0.20
+    view_last_product_page_factor: float = 1.0
+    view_base_bonus: float = 0.52
+    recency_decay: float = 0.70
+    slot1_category_match_bonus: float = 0.18
+    same_cat_bonus_weight: float = 0.06
+    cart_active_score_bonus: float = 0.95
+    cart_forgotten_score_bonus: float = 0.35
+    recurrent_score_bonus: float = 0.25
+    allow_recurrent_rebuy: bool = True
+    discount_boost_weight: float = 0.15
 
     # Conversion-oriented IPS & Bandit learning
     ips_purchase_weight: float = 2.5
@@ -115,6 +136,7 @@ class WeightsProfile:
     bandit_cold_ucb_multiplier: float = 1.8
     bandit_warm_ucb_multiplier: float = 0.20
     bandit_exam_power: float = 0.75
+    use_empirical_exam_curve: bool = True
     bandit_prior_strength: float = 20.0
     ml_max_blend_alpha: float = 0.45
     ml_min_positives: int = 25
@@ -124,26 +146,26 @@ class WeightsProfile:
     mmr_start_slot_session: int = 5
     mmr_start_slot_home: int = 3
     mmr_subcat_lambda_session: float = 0.0
-    mmr_subcat_lambda_home: float = 0.15
-    mmr_brand_lambda: float = 0.04
+    mmr_subcat_lambda_home: float = 0.06
+    mmr_brand_lambda: float = 0.03
     mmr_relative_penalty: bool = True
     subcat_floor_min: float = 0.28
     brand_floor_min: float = 0.12
     v3_no_subcat_floor: bool = False
     v3_bg_penalty: bool = True
-    bg_penalty_diff_subcat: float = 0.18
-    bg_penalty_same_subcat: float = 0.45
+    bg_penalty_diff_subcat: float = 0.25
+    bg_penalty_same_subcat: float = 0.75
     v3_ease_weight: float = 0.0
 
-    # Stage 4.1 Business rules (M1..M5)
+    # Stage 4.1 / 5.1 Business rules
     v4_cart_priority: bool = True
     v4_cart_active_minutes: float = 30.0
-    v4_cart_max_slots: int = 3
-    v4_forgotten_cart: bool = True
+    v4_cart_max_slots: int = 2
+    v4_forgotten_cart: bool = False
     v4_forgotten_max_slots: int = 2
     v4_forgotten_max_days: float = 30.0
     v4_price_ascending: bool = False
-    v4_recurrent: bool = True
+    v4_recurrent: bool = False
     v4_recurrent_min_purchases: int = 2
     v4_recurrent_max_slots: int = 2
     v4_live_event_purchases: bool = True
@@ -326,6 +348,17 @@ PRESETS: dict[str, WeightsProfile] = {
         cold_explore_start_slot_warm=5,
         max_cold_explore_in_warm=3,
         bandit_ucb_alpha=0.16,
+    ),
+    "calibrated_m3": replace(
+        _BASE,
+        profile_name="calibrated_m3",
+        description="Variant M3 pura: fins i tot el carretó actiu competeix al rànquing per puntuació sense bloqueig de posicions ni penalització de fons.",
+        v4_cart_priority=False,
+        cart_active_score_bonus=1.60,
+        v3_bg_penalty=False,
+        w_global_pop=0.72,
+        w_self_cvr_view=2.30,
+        sales_rank_blend_weight=0.80,
     ),
 }
 

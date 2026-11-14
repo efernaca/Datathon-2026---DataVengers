@@ -1,4 +1,4 @@
-"""Unit tests for Calypso 4.1.e modular WeightsProfile, presets, signed ML, hot-reload, and tuner."""
+"""Unit tests for Calypso 5.1 modular WeightsProfile, presets, 5.1 measures, hot-reload, and tuner."""
 from __future__ import annotations
 
 import os
@@ -17,10 +17,15 @@ for _p in (CALYPSO_ROOT, ETAPA4_DIR):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+from src.bandits import EMPIRICAL_SLOT_WEIGHTS, PositionAwareBandit  # noqa: E402
 from src.config import ConfigV4  # noqa: E402
 from src.disk_cache import DiskCache  # noqa: E402
 from src.eval import generate_synthetic_dataset_v4  # noqa: E402
-from src.recommender import CalypsoRecommenderV4, build_snapshot_v4_from_records  # noqa: E402
+from src.recommender import (  # noqa: E402
+    CalypsoRecommenderV4,
+    _prepare_request_signals,
+    build_snapshot_v4_from_records,
+)
 from src.reranker import NUM_FEATURES, PositionDebiasedRanker  # noqa: E402
 from src.serve import Stage4BackgroundUpdater  # noqa: E402
 from src.state import StateStore  # noqa: E402
@@ -57,6 +62,7 @@ class TestModularWeightsProfile(unittest.TestCase):
             "cheap_hard_sort",
             "user_trend_focus",
             "product_profile_focus",
+            "calibrated_m3",
         }
         self.assertEqual(set(list_presets()), expected)
         with tempfile.TemporaryDirectory() as tmp:
@@ -155,6 +161,51 @@ class TestModularWeightsProfile(unittest.TestCase):
         self.assertEqual(len(history), 5)
         self.assertGreater(float(best_eval["ALL"]["hit_rate_buy@10"]), 0.5)
         self.assertIn("cheap_boost", PRESETS)
+        self.assertIn("calibrated_m3", PRESETS)
+
+    def test_v5_1_conversion_measures(self) -> None:
+        wp = get_preset("conversion_first")
+        cfg = ConfigV4.from_profile(wp)
+        records = self.syn["v4_records"]
+        snap, _ = build_snapshot_v4_from_records(**records, config=cfg, weights_profile=wp)
+        rec = CalypsoRecommenderV4(cfg)
+
+        # (D3) Pool >= 75 and Top-N bestsellers preserved even with multiple recent_views
+        warm_pool = [pid for pid in snap.fallback_ranked if pid not in snap.new_product_ids]
+        rv = warm_pool[40:44] if len(warm_pool) > 44 else warm_pool[:3]
+        cands = rec._gather_candidates(("u_x", False, "Madrid", "web", "product", rv), snap, frozenset())
+        self.assertGreaterEqual(cfg.candidate_pool_size, 75)
+        self.assertGreaterEqual(wp.guaranteed_top_sellers_in_pool, 12)
+        self.assertGreaterEqual(len(cands), 75)
+        cands_set = set(cands)
+        expected_top = [
+            pid for pid in snap.fallback_ranked[: wp.guaranteed_top_sellers_in_pool] if pid in snap.active_ids
+        ]
+        for pid in expected_top:
+            self.assertIn(pid, cands_set)
+
+        # (D6) Last viewed item on product page receives no 0.65 attenuation
+        last_pid = warm_pool[0]
+        prev_pid = warm_pool[1]
+        _, sv_last_on_product, *_ = _prepare_request_signals(
+            snap, ("u_x", False, "Madrid", "web", "product", [prev_pid, last_pid]), weights_profile=wp
+        )
+        _, sv_last_on_category, *_ = _prepare_request_signals(
+            snap, ("u_x", False, "Madrid", "web", "category", [prev_pid, last_pid]), weights_profile=wp
+        )
+        self.assertAlmostEqual(sv_last_on_product[last_pid], sv_last_on_category[last_pid], places=6)
+
+        # (X10) New products without historical sales inherit positive global_pop_norm from neighbors
+        cold_with_nbs = [pid for pid in snap.new_product_ids if snap.cold_neighbors.get(pid)]
+        self.assertTrue(cold_with_nbs)
+        self.assertTrue(any(snap.global_pop_norm.get(pid, 0.0) > 0.0 for pid in cold_with_nbs))
+
+        # (M5) Empirical attention curve applied on PositionAwareBandit
+        bandit_emp = PositionAwareBandit(use_empirical_exam_curve=wp.use_empirical_exam_curve)
+        self.assertEqual(bandit_emp.exam_weights, EMPIRICAL_SLOT_WEIGHTS)
+
+        # (M7) Softened subcategory MMR diversification on home page (<= 0.08)
+        self.assertLessEqual(wp.mmr_subcat_lambda_home, 0.08)
 
 
 if __name__ == "__main__":

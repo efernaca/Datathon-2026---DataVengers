@@ -1,10 +1,10 @@
 {
   "state": "completed",
   "action": "train_and_activate",
-  "target_folder": "calypso_5_1",
-  "target_name": "calypso 5.1",
+  "target_folder": "odyseus",
+  "target_name": "odyseus",
   "progress": 100,
-  "message": "Model 'calypso_5_1' (calypso-5.1) actiu amb PID 15620 en 99.5s (Heartbeat llest (PID 15620, snapshot v1)). Aturats: cap.",
-  "started_at": 1794690974.4214716,
-  "updated_at": 1794691073.988305
+  "message": "Model 'odyseus' (calypso-5.1f) actiu amb PID 14112 en 94.2s (Heartbeat llest (PID 14112, snapshot v1)). Aturats: cap.",
+  "started_at": 1794692866.2554822,
+  "updated_at": 1794692960.4581778
 }

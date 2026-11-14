@@ -9,6 +9,8 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
+from .bandits import EMPIRICAL_SLOT_WEIGHTS
+
 FEATURE_NAMES: tuple[str, ...] = (
     "seq_lift_score",
     "self_cvr_view",
@@ -248,6 +250,7 @@ def build_ips_training_dataset(
     max_sessions: int = 3000,
     purchase_weight: float = 2.0,
     click_weight: float = 0.45,
+    use_empirical_exam_curve: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Convert feedback/session impression logs into IPS-weighted (X, y, weights)."""
     feat_rows: list[np.ndarray] = []
@@ -285,7 +288,10 @@ def build_ips_training_dataset(
 
         processed += 1
         for slot_idx, pid in enumerate(shown_list):
-            exam_p = (slot_idx + 1.0) ** (-exam_power)
+            if use_empirical_exam_curve and slot_idx < len(EMPIRICAL_SLOT_WEIGHTS):
+                exam_p = EMPIRICAL_SLOT_WEIGHTS[slot_idx]
+            else:
+                exam_p = (slot_idx + 1.0) ** (-exam_power)
             ips_w = min(1.0 / max(exam_p, 1e-4), max_ips_weight)
 
             if pid == purchased:

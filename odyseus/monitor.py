@@ -1,4 +1,4 @@
-"""Encapsulated entrypoint for Calypso 4.1.e live RawTree feedback monitor."""
+"""Encapsulated entrypoint for Calypso 5.1 live RawTree feedback monitor."""
 from __future__ import annotations
 
 import sys

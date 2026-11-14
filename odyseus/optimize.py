@@ -1,4 +1,4 @@
-"""Encapsulated CLI entrypoint for the Odyseus offline iterative conversion optimizer."""
+"""Encapsulated CLI entrypoint for the Odyseus offline iterative conversion optimizer (calypso-5.1f)."""
 from __future__ import annotations
 
 import sys

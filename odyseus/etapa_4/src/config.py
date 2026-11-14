@@ -63,12 +63,12 @@ def load_dotenv_files() -> None:
 
 @dataclass(frozen=True, slots=True)
 class ConfigV4:
-    """Immutable configuration for Stage 4 (calypso-4.1f · Odyseus modular + reglas de negocio conmutables)."""
+    """Immutable configuration for Stage 4 (calypso-5.1f · Odyseus + Calypso 5.1 modular)."""
 
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "calypso-4.1f"
+    model_version: str = "calypso-5.1f"
     weights_profile_path: str = "weights_profile.json"
 
     # SLA-hardened Fast / Live / Stock cadence timings
@@ -81,7 +81,7 @@ class ConfigV4:
     cache_dir: str = "cache"
 
     # Fast candidate retrieval & sequential scoring
-    candidate_pool_size: int = 64
+    candidate_pool_size: int = 78
     recency_decay: float = 0.65
     lift_beta: float = 0.45
     lift_prior_pop: float = 30.0
@@ -172,6 +172,8 @@ class ConfigV4:
     def from_profile(cls, wp: WeightsProfile, **overrides: Any) -> ConfigV4:
         """Construct ConfigV4 synchronized with a modular WeightsProfile."""
         kwargs: dict[str, Any] = {
+            "candidate_pool_size": wp.candidate_pool_size,
+            "recency_decay": wp.recency_decay,
             "self_view_weight": wp.w_self_cvr_view,
             "intent_weight": wp.w_intent_score,
             "affinity_weight": wp.w_user_affinity,

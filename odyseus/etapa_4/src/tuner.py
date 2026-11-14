@@ -1,4 +1,4 @@
-"""Modular profile manager, offline preset evaluator, and iterative conversion optimizer for Calypso 4.1.e."""
+"""Modular profile manager, offline preset evaluator, and iterative conversion optimizer for Calypso 5.1."""
 from __future__ import annotations
 
 import argparse
@@ -30,7 +30,7 @@ OPTIMIZABLE_PARAMS: dict[str, tuple[float, float, float]] = {
     "w_user_affinity": (0.05, 0.85, 0.10),
     "w_price_compat": (0.00, 0.70, 0.10),
     "w_ctx_bayes": (0.05, 0.80, 0.10),
-    "w_global_pop": (0.02, 0.65, 0.08),
+    "w_global_pop": (0.15, 0.90, 0.10),
     "w_live_trend": (0.02, 0.75, 0.10),
     "w_reverse_graft": (0.05, 0.75, 0.08),
     "w_forward_cold": (0.10, 0.90, 0.10),
@@ -40,6 +40,11 @@ OPTIMIZABLE_PARAMS: dict[str, tuple[float, float, float]] = {
     "price_cheap_asymmetry": (0.00, 0.90, 0.15),
     "bandit_ucb_alpha": (0.04, 0.28, 0.04),
     "mmr_brand_lambda": (0.00, 0.12, 0.02),
+    "sales_rank_blend_weight": (0.20, 0.95, 0.12),
+    "transition_dest_pop_gamma": (0.00, 0.85, 0.12),
+    "view_base_bonus": (0.00, 0.90, 0.12),
+    "slot1_category_match_bonus": (0.00, 0.50, 0.08),
+    "cart_active_score_bonus": (0.20, 2.20, 0.25),
 }
 
 
@@ -237,30 +242,24 @@ def _format_preset_eval_table(results: list[dict[str, Any]]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calypso 4.1.e Modular Profile Tuner & Optimizer")
+    from .odyseus_optimizer import PARAM_GROUPS, run_odyseus_optimization
+
+    parser = argparse.ArgumentParser(description="Odyseus (calypso-5.1f) Modular Profile Tuner & Optimizer")
     parser.add_argument("--profile-path", type=str, default="", help="Path to weights_profile.json")
     parser.add_argument("--list-presets", action="store_true", help="List available built-in presets")
     parser.add_argument("--show", action="store_true", help="Print current active weights profile JSON")
     parser.add_argument("--preset", type=str, default="", help="Apply a built-in preset to weights_profile.json")
     parser.add_argument("--set", nargs="+", default=[], help="Override profile fields with KEY=VALUE pairs")
     parser.add_argument("--eval-presets", action="store_true", help="Benchmark all built-in presets on synthetic data")
-    parser.add_argument("--optimize", action="store_true", help="Run iterative conversion optimization")
-    parser.add_argument("--iters", type=int, default=16, help="Optimization iterations")
-    parser.add_argument("--seed", type=int, default=42, help="Synthetic benchmark random seed")
-    parser.add_argument("--n-test", type=int, default=1200, help="Number of synthetic test requests for tuning")
-    parser.add_argument(
-        "--eval-mode",
-        choices=("hybrid", "real", "synthetic"),
-        default="hybrid",
-        help="Offline evaluation mode for --optimize",
-    )
-    parser.add_argument(
-        "--history-file",
-        type=str,
-        default="",
-        help="Single JSON archive path for --optimize iteration history",
-    )
+    parser.add_argument("--optimize", action="store_true", help="Run Odyseus adaptive conversion optimization")
+    parser.add_argument("--eval-mode", choices=("hybrid", "real", "synthetic"), default="hybrid")
+    parser.add_argument("--iters", type=int, default=20, help="Optimization iterations")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--n-test", type=int, default=1200, help="Synthetic test requests")
+    parser.add_argument("--full-real", action="store_true", help="Evaluate all 25,000 real rows per iteration")
     parser.add_argument("--resume", action="store_true", help="Resume appending to history archive")
+    parser.add_argument("--history-file", type=str, default="", help="History archive path")
+    parser.add_argument("--focus-groups", nargs="+", choices=PARAM_GROUPS, default=None)
     parser.add_argument("--save-best", action="store_true", help="Save optimized profile to weights_profile.json")
     args = parser.parse_args()
 
@@ -268,7 +267,7 @@ def main() -> None:
     target_path = cfg.resolve_weights_profile_path()
 
     if args.list_presets:
-        print("=== Calypso 4.1.e Built-in Presets ===")
+        print("=== Calypso 5.1 Built-in Presets ===")
         for name in list_presets():
             p = PRESETS[name]
             print(f"- {name:<22}: {p.description}")
@@ -312,14 +311,14 @@ def main() -> None:
         return
 
     if args.optimize:
-        from .odyseus_optimizer import run_odyseus_optimization
-
         model_root = Path(__file__).resolve().parents[2]
         history_path = (
             Path(args.history_file)
             if args.history_file
             else (model_root / "results" / "odyseus_history.json")
         )
+        if not history_path.is_absolute():
+            history_path = model_root / history_path
         run_odyseus_optimization(
             model_root,
             base_profile=updated_wp,
@@ -328,9 +327,11 @@ def main() -> None:
             iters=args.iters,
             seed=args.seed,
             n_syn=args.n_test,
+            full_real=args.full_real,
             resume=args.resume,
             save_best=args.save_best,
             target_profile_path=target_path,
+            focus_groups=tuple(args.focus_groups) if args.focus_groups else None,
         )
         return
 

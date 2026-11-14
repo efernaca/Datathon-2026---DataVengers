@@ -44,7 +44,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("odyseus.serve")
+logger = logging.getLogger("calypso5_1.serve")
 
 
 def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
@@ -206,13 +206,29 @@ LIMIT 35 BY region, device, page
 
 SQL_LIVE_TRENDS = """
 SELECT product_id::String AS product_id,
+       countIf(event_type::String = 'purchase') AS live_purchases,
+       countIf(event_type::String = 'add_to_cart') AS live_carts,
+       (countIf(event_type::String = 'purchase') * 5.0 +
+        countIf(event_type::String = 'add_to_cart') * 2.0 +
+        countIf(event_type::String = 'view') * 0.2) AS live_score
+FROM shop.events
+WHERE ts::DateTime64(3) >= (SELECT max(ts::DateTime64(3)) FROM shop.events) - INTERVAL 60 MINUTE
+GROUP BY product_id
+ORDER BY live_score DESC
+LIMIT 400
+"""
+
+SQL_LIVE_TRENDS_FALLBACK = """
+SELECT product_id::String AS product_id,
+       countIf(event_type::String = 'purchase') AS live_purchases,
+       countIf(event_type::String = 'add_to_cart') AS live_carts,
        (countIf(event_type::String = 'purchase') * 5.0 +
         countIf(event_type::String = 'add_to_cart') * 2.0 +
         countIf(event_type::String = 'view') * 0.2) AS live_score
 FROM shop.events
 GROUP BY product_id
 ORDER BY live_score DESC
-LIMIT 200
+LIMIT 400
 """
 
 SQL_HISTORY_SESSIONS_TRAIN = """
@@ -493,6 +509,7 @@ class Stage4BackgroundUpdater(threading.Thread):
             warm_ucb_multiplier=wp.bandit_warm_ucb_multiplier,
             click_reward=wp.bandit_click_reward,
             purchase_reward=wp.bandit_purchase_reward,
+            use_empirical_exam_curve=wp.use_empirical_exam_curve,
         )
         self._static_bundle: StaticHistoryBundle | None = cache.load_static_history()
         # 4.1: índice de carrito/recurrentes (histórico precalculado + capa en vivo)
@@ -596,6 +613,7 @@ class Stage4BackgroundUpdater(threading.Thread):
             warm_ucb_multiplier=new_wp.bandit_warm_ucb_multiplier,
             click_reward=new_wp.bandit_click_reward,
             purchase_reward=new_wp.bandit_purchase_reward,
+            use_empirical_exam_curve=new_wp.use_empirical_exam_curve,
         )
         logger.info(
             "[HOT-RELOAD] Reloaded profile '%s' -> '%s' from %s",
@@ -616,7 +634,9 @@ class Stage4BackgroundUpdater(threading.Thread):
         upd_cat = self.client.query_safe(SQL_CATALOG_UPDATES, timeout=8.0) or []
         oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=4.0) or []
         oos_ids = [str(r["product_id"]) for r in oos_rows]
-        trend_rows = self.client.query_safe(SQL_LIVE_TRENDS, timeout=5.0) or []
+        trend_rows = self.client.query_safe(SQL_LIVE_TRENDS, timeout=5.0)
+        if trend_rows is None:
+            trend_rows = self.client.query_safe(SQL_LIVE_TRENDS_FALLBACK, timeout=5.0) or []
         live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=5.0) or []
         feedback_rows = self._fetch_feedback_rows()
         live_cart = self.client.query_safe(SQL_LIVE_CART_EVENTS, timeout=6.0)
@@ -1037,7 +1057,7 @@ def run_watchdog(pass_through_args: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calypso 4.1.e Encapsulated Modular Real-Time Recommender Service")
+    parser = argparse.ArgumentParser(description="Calypso 5.1 High-Conversion Modular Real-Time Recommender Service")
     parser.add_argument("--self-check", action="store_true", help="Run fast pre-flight verification and exit")
     parser.add_argument("--dry-run", action="store_true", help="Run local dry-run with disk cache")
     parser.add_argument("--train-only", action="store_true", help="Train fresh snapshot + ML ranker + EASE to disk cache and exit")
@@ -1159,7 +1179,7 @@ def main() -> None:
         config=cfg,
     )
     logger.info(
-        "Calypso 4.1.e LIVE (team=%s, model=%s, profile=%s, pid=%d)",
+        "Calypso 5.1 LIVE (team=%s, model=%s, profile=%s, pid=%d)",
         cfg.team_id,
         cfg.model_version,
         active_wp.profile_name,
@@ -1180,7 +1200,7 @@ def main() -> None:
                 last_batch_size = answered
                 logger.info("[%s] Submitted %d fresh answers", cfg.model_version, answered)
         except Exception as exc:
-            logger.error("Calypso 4.1.e FastLoop error: %s", exc)
+            logger.error("Calypso 5.1 FastLoop error: %s", exc)
             time.sleep(0.35)
 
         now_t = time.time()

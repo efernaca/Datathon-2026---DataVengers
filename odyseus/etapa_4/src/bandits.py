@@ -9,8 +9,29 @@ from typing import Any
 from .state import BanditState, ProductInfo
 
 
-def slot_examination_weights(k_slots: int = 10, exam_power: float = 0.75) -> tuple[float, ...]:
-    """Examination decay curve P(exam | slot=k) ~ (k + 1)^(-exam_power)."""
+EMPIRICAL_SLOT_WEIGHTS: tuple[float, ...] = (
+    1.00,
+    0.78,
+    0.72,
+    0.60,
+    0.58,
+    0.55,
+    0.52,
+    0.50,
+    0.50,
+    0.50,
+)
+
+
+def slot_examination_weights(
+    k_slots: int = 10,
+    exam_power: float = 0.75,
+    *,
+    use_empirical: bool = False,
+) -> tuple[float, ...]:
+    """Examination decay curve P(exam | slot=k) empirical or ~ (k + 1)^(-exam_power)."""
+    if use_empirical and k_slots <= len(EMPIRICAL_SLOT_WEIGHTS):
+        return EMPIRICAL_SLOT_WEIGHTS[:k_slots]
     return tuple((idx + 1.0) ** (-exam_power) for idx in range(k_slots))
 
 
@@ -27,9 +48,14 @@ class PositionAwareBandit:
         warm_ucb_multiplier: float = 0.20,
         click_reward: float = 0.25,
         purchase_reward: float = 1.0,
+        use_empirical_exam_curve: bool = False,
     ) -> None:
         self.k_slots = k_slots
-        self.exam_weights = slot_examination_weights(k_slots=k_slots, exam_power=exam_power)
+        self.exam_weights = slot_examination_weights(
+            k_slots=k_slots,
+            exam_power=exam_power,
+            use_empirical=use_empirical_exam_curve,
+        )
         self.prior_strength = prior_strength
         self.cold_ucb_multiplier = cold_ucb_multiplier
         self.warm_ucb_multiplier = warm_ucb_multiplier

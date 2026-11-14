@@ -1,51 +1,37 @@
-# Odyseus (`calypso-4.1f`) · Optimitzador Iteratiu de Conversió Offline
+# Odyseus (`calypso-5.1f`) · Optimitzador Adaptatiu sobre Calypso 5.1
 
-`odyseus` parteix d'una còpia encapsulada de `calypso_4_1_e` i incorpora un optimitzador iteratiu offline (`optimize.py` / `etapa_4/src/odyseus_optimizer.py`) dissenyat per trobar la combinació òptima de paràmetres que maximitza la taxa de conversió.
+`odyseus` utilitza ara **Calypso 5.1** com a model de referència (`model_version = "calypso-5.1f"`) per optimitzar iterativament combinacions de paràmetres orientades a màxima conversió a compra.
 
-## Què optimitza
+## Espai de cerca (`~99` variables en `8` grups)
 
-Explora tot l'espai de `WeightsProfile` (~65 paràmetres) en fases (exploració àmplia, grups funcionals acoblats, refinament local i *momentum*):
+1. **`base_popularity_5_1`**: `use_sales_rank_base_rate`, `sales_rank_blend_weight`, `live_pop_mix_weight`, `transition_dest_pop_gamma`, `candidate_pool_size`, `guaranteed_top_sellers_in_pool`, `w_ctx_bayes`, `w_global_pop`, `w_live_trend`, `v3_bg_penalty`, `bg_penalty_diff_subcat`, `bg_penalty_same_subcat`.
+2. **`session_core`**: `w_seq_lift`, `w_self_cvr_view`, `w_intent_score`, `w_same_top_subcat`, `w_same_top_brand`, `view_last_product_page_factor`, `view_base_bonus`, `recency_decay`, `slot1_category_match_bonus`, `same_cat_bonus_weight`.
+3. **`cart_recurrent_rules`**: `v4_cart_priority`, `v4_cart_active_minutes`, `v4_cart_max_slots`, `cart_active_score_bonus`, `v4_forgotten_cart`, `v4_forgotten_max_slots`, `cart_forgotten_score_bonus`, `v4_recurrent`, `v4_recurrent_max_slots`, `recurrent_score_bonus`, `allow_recurrent_rebuy`, `v4_price_ascending`, `v4_live_event_purchases`.
+4. **`cold_start`**: `w_is_new_product`, `w_reverse_graft`, `w_forward_cold`, `cold_neighbor_pop_prior_weight`, `cold_sparse_cos_weight`, `cold_subcat_match_bonus`, `cold_cat_match_bonus`, `cold_brand_match_bonus`, `cold_price_prox_bonus`, `cold_explore_start_slot_warm`, `cold_explore_start_slot_cold`, `max_cold_explore_in_warm`.
+5. **`personalization_price`**: `w_user_affinity`, `w_price_compat`, `w_log_price_norm`, `price_std_floor`, `price_cheap_asymmetry`, `revenue_tie_weight`, `tie_break_mode`, `tie_break_eps`, `discount_boost_weight`.
+6. **`diversity_mmr`**: `v3_no_subcat_floor`, `subcat_floor_min`, `brand_floor_min`, `mmr_start_slot_session`, `mmr_start_slot_home`, `mmr_subcat_lambda_session`, `mmr_subcat_lambda_home`, `mmr_brand_lambda`, `mmr_relative_penalty`.
+7. **`bandit_ml`**: `bandit_ucb_alpha`, `bandit_cold_ucb_multiplier`, `bandit_warm_ucb_multiplier`, `use_empirical_exam_curve`, `bandit_exam_power`.
+8. **`segments`**: 29 multiplicadors actius dels 5 segments d'usuari (`new_with_views`, `new_no_views`, `known_with_views`, `known_with_history`, `known_cold`).
 
-- **14 pesos prior del re-ranker:** `w_seq_lift`, `w_self_cvr_view`, `w_intent_score`, `w_user_affinity`, `w_price_compat`, `w_ctx_bayes`, `w_global_pop`, `w_live_trend`, `w_is_new_product`, `w_reverse_graft`, `w_forward_cold`, `w_log_price_norm`, `w_same_top_subcat`, `w_same_top_brand`.
-- **Multiplicadors dels 5 segments d'usuari:** `new_with_views`, `new_no_views`, `known_with_views`, `known_with_history`, `known_cold`.
-- **Penalització de fons, sòls i diversitat MMR:** `v3_bg_penalty`, `bg_penalty_diff_subcat`, `bg_penalty_same_subcat`, `v3_no_subcat_floor`, `subcat_floor_min`, `brand_floor_min`, `mmr_*`.
-- **Exploració i *slot gating*:** `bandit_ucb_alpha`, `cold_explore_start_slot_warm`, `max_cold_explore_in_warm`.
-- **Preu i desempat:** `price_std_floor`, `price_cheap_asymmetry`, `revenue_tie_weight`, `tie_break_mode`.
-- **Regles de negoci 4.1:** `v4_cart_priority`, `v4_cart_active_minutes`, `v4_cart_max_slots`, `v4_forgotten_cart`, `v4_forgotten_max_slots`, `v4_price_ascending`, `v4_recurrent`, `v4_recurrent_max_slots`, `v4_live_event_purchases`.
+## Selecció intel·ligent adaptativa (`adaptive_ucb_bandit`)
 
-## Avaluació offline amb les dades disponibles
+A cada iteració, Odyseus aprèn de totes les iteracions prèvies (`odyseus_history.json`) mitjançant un selector **UCB per grup i per variable** (`compute_adaptive_intelligence`):
+- Dona prioritat més alta als grups i paràmetres que han aportat guany positiu (`wins`, `pos_gain`) o major sensibilitat real en l'objectiu de conversió.
+- Manté un terme d'exploració `sqrt(log(N+1)/(trials+1))` perquè les variables noves del 5.1 no provades encara tinguin prioritat inicial alta.
+- Aplica *momentum* després d'una millora acceptada i garanteix configuracions úniques (hash SHA-256).
 
-1. **Mode `hybrid` (per defecte):** combina:
-   - **Dades reals del repositori** (`offline_eval_cache/official_test_data.parquet` + `odyseus/cache/snapshot_v4_latest.pkl`, eliminant les compres futures del conjunt de test de `bought_products` per evitar *leakage*): calcula `hit_rate_buy@10` i `dcg_buy@10` exactes sobre totes les 386 compres reals, `hit_rate_click@10` sobre els 921 clics reals, i `SNIPS_cvr_slot1` no esbiaixat.
-   - **Benchmark sintètic estratificat** (`ALL`, `WARM`, `COLD_START`) per protegir els nous usuaris i productes nous (`cold_item_hit@10`).
-2. **Mode `real`:** avalua només sobre `official_test_data.parquet` (amb `--full-real` es passen les 25.000 peticions senceres a cada iteració).
-3. **Mode `synthetic`:** avalua només sobre el simulador sintètic estratificat.
-
-## Arxiu únic d'historial (`odyseus_history.json`)
-
-Després de **cada iteració**, s'actualitza atòmicament l'arxiu `odyseus/results/odyseus_history.json` amb:
-- Metadades globals (`best_iter`, `best_objective`, `baseline_objective`, `best_metrics`, `best_params`).
-- L'array `iterations` amb **totes** les iteracions: `iter`, `timestamp`, `strategy`, `accepted`, `objective`, `changed_params`, `metrics` (`real` + `synthetic`) i `params` (tota la configuració completa).
-
-## Comandes d'ús
+## Comandes principals
 
 ```powershell
-cd odyseus
+# Llançar ronda d'iteracions offline (dades reals + sintètiques) i guardar la millor combinació
+python odyseus/optimize.py --iters 30 --save-best
 
-# 1. Tests i comprovacions ràpides
-python -m unittest discover -s etapa_4/tests -v
-python serve.py --self-check
-python serve.py --dry-run
+# Continuar iterant sobre el mateix historial únic (odyseus/results/odyseus_history.json)
+python odyseus/optimize.py --resume --iters 30 --save-best
 
-# 2. Executar optimització iterativa offline (guarda historial a results/odyseus_history.json)
-python optimize.py --iters 30 --save-best
+# Centrar la cerca només en certs grups (ex. base_popularity_5_1 i session_core)
+python odyseus/optimize.py --focus-groups base_popularity_5_1 session_core --iters 25 --save-best
 
-# Continuar afegint iteracions sobre el mateix arxiu d'historial
-python optimize.py --iters 20 --resume --save-best
-
-# Només dades reals completes (25.000 peticions a cada iteració)
-python optimize.py --eval-mode real --full-real --iters 15 --save-best
-
-# També accessible via tuner.py
-python tuner.py --optimize --iters 30 --save-best
+# Avaluació 100% real sobre les 25.000 peticions completes
+python odyseus/optimize.py --eval-mode real --full-real --iters 20 --save-best
 ```

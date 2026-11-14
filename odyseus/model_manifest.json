@@ -1,6 +1,6 @@
 {
   "name": "odyseus",
-  "model_version": "calypso-4.1f",
+  "model_version": "calypso-5.1f",
   "folder": "odyseus",
   "entrypoint": "serve.py",
   "monitor": "monitor.py",
@@ -11,5 +11,5 @@
   "train_args": ["--train-only"],
   "heartbeat_file": "cache/heartbeat.json",
   "log_file": "logs/live.log",
-  "description": "Odyseus (basat en Calypso 4.1.e) = Sistema d'optimitzacio iterativa offline/online sobre perfils JSON hot-reloadables orientat a maximitzar la conversio."
+  "description": "Odyseus (basat en Calypso 5.1 -> calypso-5.1f) = Optimitzador iteratiu adaptatiu offline/online sobre tots els parametres 5.1 + perfils JSON hot-reloadables."
 }

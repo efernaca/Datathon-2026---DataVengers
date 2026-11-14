@@ -18,6 +18,7 @@ class ProductInfo:
     description: str
     is_active: bool
     is_new: bool = False
+    discount_ratio: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +122,7 @@ class RecommenderSnapshotV4:
     # user_id -> ((product_id, n_compras), ...) con n_compras >= 2, más comprado primero
     user_recurrent: dict[str, tuple[tuple[str, int], ...]] = field(default_factory=dict)
 
-    # 4.1.e · perfil de pesos modular actiu
+    # 5.1 · perfil de pesos modular actiu
     weights_profile: Any = None
     config_override: Any = None
 

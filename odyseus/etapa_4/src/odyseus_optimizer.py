@@ -1,11 +1,13 @@
-"""Odyseus iterative offline parameter optimizer targeting maximum purchase conversion."""
+"""Odyseus iterative offline parameter optimizer for Calypso 5.1f targeting max conversion."""
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -23,7 +25,6 @@ from .recommender import CalypsoRecommenderV4, build_product_static_table
 from .reranker import PositionDebiasedRanker
 from .state import RecommenderSnapshotV4
 from .weights_profile import (
-    PRESETS,
     SEGMENT_SIGNAL_NAMES,
     USER_SEGMENTS,
     WeightsProfile,
@@ -32,8 +33,10 @@ from .weights_profile import (
     load_active_profile,
 )
 
+MODEL_VERSION_LABEL = "calypso-5.1f"
+
 # ---------------------------------------------------------------------------
-# Full tunable parameter space on WeightsProfile
+# Full tunable parameter space on Calypso 5.1f WeightsProfile (~85 parameters)
 # Spec types:
 #   ("float", lo, hi, step, group)
 #   ("int", lo, hi, step, group)
@@ -41,54 +44,85 @@ from .weights_profile import (
 #   ("choice", options, group)
 # ---------------------------------------------------------------------------
 PARAM_SPECS: dict[str, tuple[Any, ...]] = {
-    # 14 Prior Weights
-    "w_seq_lift": ("float", 0.20, 2.50, 0.25, "session_core"),
-    "w_self_cvr_view": ("float", 0.40, 3.50, 0.30, "session_core"),
-    "w_intent_score": ("float", 0.00, 1.60, 0.20, "session_core"),
-    "w_same_top_subcat": ("float", 0.00, 0.80, 0.10, "session_core"),
-    "w_same_top_brand": ("float", 0.00, 0.40, 0.06, "session_core"),
-    "w_user_affinity": ("float", 0.00, 1.00, 0.12, "personalization_price"),
-    "w_price_compat": ("float", 0.00, 0.80, 0.10, "personalization_price"),
-    "w_log_price_norm": ("float", -0.40, 0.20, 0.08, "personalization_price"),
-    "price_std_floor": ("float", 0.20, 1.00, 0.12, "personalization_price"),
-    "price_cheap_asymmetry": ("float", 0.00, 1.00, 0.18, "personalization_price"),
-    "revenue_tie_weight": ("float", -0.15, 0.15, 0.05, "personalization_price"),
-    "tie_break_mode": ("choice", ("conversion", "cheap", "revenue"), "personalization_price"),
-    "w_ctx_bayes": ("float", 0.00, 1.20, 0.15, "base_popularity"),
-    "w_global_pop": ("float", 0.00, 1.60, 0.22, "base_popularity"),
-    "w_live_trend": ("float", 0.00, 1.20, 0.15, "base_popularity"),
+    # 1. Session Core & 5.1 In-Session View / Category Coherency Signals
+    "w_seq_lift": ("float", 0.30, 2.50, 0.22, "session_core"),
+    "w_self_cvr_view": ("float", 0.50, 3.50, 0.28, "session_core"),
+    "w_intent_score": ("float", 0.05, 1.60, 0.18, "session_core"),
+    "w_same_top_subcat": ("float", 0.00, 0.70, 0.08, "session_core"),
+    "w_same_top_brand": ("float", 0.00, 0.40, 0.05, "session_core"),
+    "view_last_product_page_factor": ("float", 0.40, 1.35, 0.15, "session_core"),
+    "view_base_bonus": ("float", 0.00, 1.10, 0.14, "session_core"),
+    "recency_decay": ("float", 0.45, 0.90, 0.08, "session_core"),
+    "slot1_category_match_bonus": ("float", 0.00, 0.55, 0.08, "session_core"),
+    "same_cat_bonus_weight": ("float", 0.00, 0.25, 0.04, "session_core"),
+    # 2. Calypso 5.1 Base-Rate Calibration, Pool Guarantees & Live Window
+    "w_ctx_bayes": ("float", 0.05, 1.20, 0.14, "base_popularity_5_1"),
+    "w_global_pop": ("float", 0.10, 1.40, 0.16, "base_popularity_5_1"),
+    "w_live_trend": ("float", 0.02, 1.00, 0.12, "base_popularity_5_1"),
+    "use_sales_rank_base_rate": ("bool", "base_popularity_5_1"),
+    "sales_rank_blend_weight": ("float", 0.05, 0.95, 0.14, "base_popularity_5_1"),
+    "live_pop_mix_weight": ("float", 0.05, 1.00, 0.15, "base_popularity_5_1"),
+    "transition_dest_pop_gamma": ("float", 0.00, 0.85, 0.14, "base_popularity_5_1"),
+    "candidate_pool_size": ("int", 50, 120, 12, "base_popularity_5_1"),
+    "guaranteed_top_sellers_in_pool": ("int", 6, 40, 6, "base_popularity_5_1"),
+    "v3_bg_penalty": ("bool", "base_popularity_5_1"),
+    "bg_penalty_diff_subcat": ("float", 0.08, 1.00, 0.16, "base_popularity_5_1"),
+    "bg_penalty_same_subcat": ("float", 0.15, 1.00, 0.16, "base_popularity_5_1"),
+    # 3. Cold-Start, Neighbor Prior (X10) & Slot Gating
     "w_is_new_product": ("float", 0.00, 0.25, 0.04, "cold_start"),
-    "w_reverse_graft": ("float", 0.00, 0.90, 0.12, "cold_start"),
-    "w_forward_cold": ("float", 0.00, 1.10, 0.15, "cold_start"),
-    "bandit_ucb_alpha": ("float", 0.00, 0.35, 0.05, "cold_start"),
-    "cold_explore_start_slot_warm": ("int", 3, 9, 2, "cold_start"),
+    "w_reverse_graft": ("float", 0.05, 0.90, 0.12, "cold_start"),
+    "w_forward_cold": ("float", 0.10, 1.10, 0.14, "cold_start"),
+    "cold_neighbor_pop_prior_weight": ("float", 0.10, 1.20, 0.16, "cold_start"),
+    "cold_sparse_cos_weight": ("float", 0.30, 0.85, 0.10, "cold_start"),
+    "cold_subcat_match_bonus": ("float", 0.10, 0.70, 0.10, "cold_start"),
+    "cold_cat_match_bonus": ("float", 0.00, 0.40, 0.06, "cold_start"),
+    "cold_brand_match_bonus": ("float", 0.00, 0.40, 0.06, "cold_start"),
+    "cold_price_prox_bonus": ("float", 0.00, 0.40, 0.06, "cold_start"),
+    "cold_explore_start_slot_warm": ("int", 4, 9, 1, "cold_start"),
+    "cold_explore_start_slot_cold": ("int", 0, 7, 2, "cold_start"),
     "max_cold_explore_in_warm": ("int", 0, 4, 1, "cold_start"),
-    # Background penalties, floors & MMR diversity
+    # 4. Personalization, Price Tie-Break & Discounts (X11)
+    "w_user_affinity": ("float", 0.05, 1.00, 0.12, "personalization_price"),
+    "w_price_compat": ("float", 0.00, 0.80, 0.10, "personalization_price"),
+    "w_log_price_norm": ("float", -0.35, 0.15, 0.07, "personalization_price"),
+    "price_std_floor": ("float", 0.20, 1.00, 0.12, "personalization_price"),
+    "price_cheap_asymmetry": ("float", 0.00, 0.90, 0.16, "personalization_price"),
+    "revenue_tie_weight": ("float", -0.15, 0.12, 0.04, "personalization_price"),
+    "tie_break_mode": ("choice", ("conversion", "cheap", "revenue"), "personalization_price"),
+    "tie_break_eps": ("float", 0.002, 0.040, 0.008, "personalization_price"),
+    "discount_boost_weight": ("float", 0.00, 0.45, 0.08, "personalization_price"),
+    # 5. Cart, Forgotten Cart & Recurrent Rebuy Rules (M6 / 4.1)
+    "v4_cart_priority": ("bool", "cart_recurrent_rules"),
+    "v4_cart_active_minutes": ("float", 5.0, 90.0, 15.0, "cart_recurrent_rules"),
+    "v4_cart_max_slots": ("int", 1, 4, 1, "cart_recurrent_rules"),
+    "cart_active_score_bonus": ("float", 0.25, 2.20, 0.28, "cart_recurrent_rules"),
+    "v4_forgotten_cart": ("bool", "cart_recurrent_rules"),
+    "v4_forgotten_max_slots": ("int", 0, 3, 1, "cart_recurrent_rules"),
+    "cart_forgotten_score_bonus": ("float", 0.00, 1.00, 0.16, "cart_recurrent_rules"),
+    "v4_recurrent": ("bool", "cart_recurrent_rules"),
+    "v4_recurrent_max_slots": ("int", 1, 3, 1, "cart_recurrent_rules"),
+    "recurrent_score_bonus": ("float", 0.00, 0.80, 0.12, "cart_recurrent_rules"),
+    "allow_recurrent_rebuy": ("bool", "cart_recurrent_rules"),
+    "v4_price_ascending": ("bool", "cart_recurrent_rules"),
+    "v4_live_event_purchases": ("bool", "cart_recurrent_rules"),
+    # 6. Diversity / MMR & Subcategory Floors
     "v3_no_subcat_floor": ("bool", "diversity_mmr"),
-    "subcat_floor_min": ("float", 0.00, 0.60, 0.10, "diversity_mmr"),
-    "brand_floor_min": ("float", 0.00, 0.30, 0.06, "diversity_mmr"),
-    "v3_bg_penalty": ("bool", "base_popularity"),
-    "bg_penalty_diff_subcat": ("float", 0.05, 1.00, 0.18, "base_popularity"),
-    "bg_penalty_same_subcat": ("float", 0.10, 1.00, 0.18, "base_popularity"),
-    "mmr_start_slot_session": ("int", 2, 10, 2, "diversity_mmr"),
-    "mmr_start_slot_home": ("int", 1, 10, 2, "diversity_mmr"),
-    "mmr_subcat_lambda_session": ("float", 0.00, 0.40, 0.08, "diversity_mmr"),
-    "mmr_subcat_lambda_home": ("float", 0.00, 0.40, 0.08, "diversity_mmr"),
-    "mmr_brand_lambda": ("float", 0.00, 0.20, 0.04, "diversity_mmr"),
+    "subcat_floor_min": ("float", 0.05, 0.55, 0.08, "diversity_mmr"),
+    "brand_floor_min": ("float", 0.00, 0.30, 0.05, "diversity_mmr"),
+    "mmr_start_slot_session": ("int", 3, 10, 2, "diversity_mmr"),
+    "mmr_start_slot_home": ("int", 1, 8, 2, "diversity_mmr"),
+    "mmr_subcat_lambda_session": ("float", 0.00, 0.35, 0.07, "diversity_mmr"),
+    "mmr_subcat_lambda_home": ("float", 0.00, 0.30, 0.06, "diversity_mmr"),
+    "mmr_brand_lambda": ("float", 0.00, 0.15, 0.03, "diversity_mmr"),
     "mmr_relative_penalty": ("bool", "diversity_mmr"),
-    # Stage 4.1 Business rules
-    "v4_cart_priority": ("bool", "business_rules"),
-    "v4_cart_active_minutes": ("float", 5.0, 120.0, 20.0, "business_rules"),
-    "v4_cart_max_slots": ("int", 1, 5, 1, "business_rules"),
-    "v4_forgotten_cart": ("bool", "business_rules"),
-    "v4_forgotten_max_slots": ("int", 0, 4, 1, "business_rules"),
-    "v4_price_ascending": ("bool", "business_rules"),
-    "v4_recurrent": ("bool", "business_rules"),
-    "v4_recurrent_max_slots": ("int", 1, 4, 1, "business_rules"),
-    "v4_live_event_purchases": ("bool", "business_rules"),
+    # 7. Bandit & Position Debiasing (M5)
+    "bandit_ucb_alpha": ("float", 0.02, 0.30, 0.04, "bandit_ml"),
+    "bandit_cold_ucb_multiplier": ("float", 0.80, 2.80, 0.30, "bandit_ml"),
+    "bandit_warm_ucb_multiplier": ("float", 0.05, 0.60, 0.10, "bandit_ml"),
+    "use_empirical_exam_curve": ("bool", "bandit_ml"),
+    "bandit_exam_power": ("float", 0.45, 1.00, 0.10, "bandit_ml"),
 }
 
-# Add active user-segment multipliers as flat virtual keys: seg_<segment>__<signal>
 _SEGMENT_ACTIVE_SIGNALS: dict[str, tuple[str, ...]] = {
     "new_with_views": ("seq", "ctx", "pop", "trend", "cold"),
     "new_no_views": ("ctx", "pop", "trend", "cold"),
@@ -99,17 +133,28 @@ _SEGMENT_ACTIVE_SIGNALS: dict[str, tuple[str, ...]] = {
 
 for _seg in USER_SEGMENTS:
     for _sig in _SEGMENT_ACTIVE_SIGNALS[_seg]:
-        PARAM_SPECS[f"seg_{_seg}__{_sig}"] = ("float", 0.20, 2.00, 0.25, "segments")
+        PARAM_SPECS[f"seg_{_seg}__{_sig}"] = ("float", 0.25, 2.00, 0.24, "segments")
 
 PARAM_GROUPS: tuple[str, ...] = (
-    "business_rules",
-    "base_popularity",
+    "base_popularity_5_1",
     "session_core",
-    "personalization_price",
+    "cart_recurrent_rules",
     "cold_start",
+    "personalization_price",
     "diversity_mmr",
+    "bandit_ml",
     "segments",
 )
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    try:
+        out = float(val)
+        return default if math.isnan(out) else out
+    except (TypeError, ValueError):
+        return default
 
 
 def get_param_value(wp: WeightsProfile, name: str) -> Any:
@@ -137,6 +182,10 @@ def apply_param_updates(wp: WeightsProfile, updates: dict[str, Any]) -> WeightsP
             direct[name] = val
     for field_name, vals in seg_buffers.items():
         direct[field_name] = tuple(vals)
+
+    # Keep coupled cold_dense_svd_weight synchronized if cold_sparse_cos_weight changed
+    if "cold_sparse_cos_weight" in direct and "cold_dense_svd_weight" not in direct:
+        direct["cold_dense_svd_weight"] = round(max(0.0, 1.0 - float(direct["cold_sparse_cos_weight"])), 4)
     return replace(wp, **direct)
 
 
@@ -169,14 +218,168 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         raise
 
 
+def _prepare_structural_tables(
+    snap: RecommenderSnapshotV4,
+    popularity_rows: list[dict[str, Any]] | None,
+    transition_rows: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Pre-index popularity and raw transitions so Stage 5.1 structural knobs update in <25ms."""
+    raw_pop: dict[str, float] = {}
+    hist_purchases: dict[str, float] = {}
+    if popularity_rows:
+        for row in popularity_rows:
+            pid = str(row.get("product_id") or "").strip()
+            if pid not in snap.active_ids:
+                continue
+            hist_purchases[pid] = max(_safe_float(row.get("purchases"), 0.0), 0.0)
+            wpop = max(_safe_float(row.get("weighted_pop"), 0.0), 0.0)
+            if wpop > 0.0:
+                raw_pop[pid] = math.log1p(wpop)
+        max_pop = max(raw_pop.values(), default=1.0) or 1.0
+        log_pop_norm = {pid: v / max_pop for pid, v in raw_pop.items()}
+    else:
+        log_pop_norm = dict(snap.global_pop_norm)
+        for pid, val in log_pop_norm.items():
+            raw_pop[pid] = val * 6.0
+            hist_purchases[pid] = max(0.0, math.expm1(val * 4.5))
+
+    live_buys_equiv: dict[str, float] = {
+        pid: 4.0 * max(val, 0.0) for pid, val in snap.live_trend_norm.items() if val > 0.0
+    }
+
+    trans_edges: list[tuple[str, str, float]] = []
+    if transition_rows:
+        for row in transition_rows:
+            src = str(row.get("src_product") or "").strip()
+            dst = str(row.get("dst_product") or "").strip()
+            if not src or dst not in snap.active_ids or src == dst:
+                continue
+            sc = max(_safe_float(row.get("raw_transition_score", row.get("score")), 0.0), 0.0)
+            if sc > 0.0:
+                trans_edges.append((src, dst, sc))
+    else:
+        # Approximate raw score inverse from stored transitions when transition_rows aren't cached
+        for src, edges in snap.transitions.items():
+            for dst, sc in edges:
+                if dst in snap.active_ids and sc > 0.0:
+                    trans_edges.append((src, dst, float(sc)))
+
+    return {
+        "hist_purchases": hist_purchases,
+        "raw_pop": raw_pop,
+        "log_pop_norm": log_pop_norm,
+        "live_buys_equiv": live_buys_equiv,
+        "trans_edges": trans_edges,
+        "has_raw_transitions": bool(transition_rows),
+    }
+
+
+def _recompute_5_1_structures(
+    base_snap: RecommenderSnapshotV4,
+    wp: WeightsProfile,
+    cfg: ConfigV4,
+    struct_prep: dict[str, Any],
+) -> tuple[dict[str, float], dict[str, tuple[tuple[str, float], ...]], tuple[str, ...]]:
+    """Fast exact recomputation of M3 base-rate, X10 neighbor prior, and D5 transition modulation."""
+    active_ids = base_snap.active_ids
+    raw_pop = struct_prep["raw_pop"]
+    hist_purchases = struct_prep["hist_purchases"]
+    log_pop_norm = struct_prep["log_pop_norm"]
+    live_buys_equiv = struct_prep["live_buys_equiv"]
+
+    mix_buys = {
+        pid: hist_purchases.get(pid, 0.0) + wp.live_pop_mix_weight * live_buys_equiv.get(pid, 0.0)
+        for pid in active_ids
+    }
+    if wp.use_sales_rank_base_rate and active_ids:
+        ranked_by_sales = sorted(
+            active_ids,
+            key=lambda pid: (mix_buys[pid], raw_pop.get(pid, 0.0), pid),
+            reverse=True,
+        )
+        denom_rank = math.log(max(len(ranked_by_sales) + 1, 100))
+        blend_w = min(max(wp.sales_rank_blend_weight, 0.0), 1.0)
+        global_pop_norm: dict[str, float] = {}
+        for rank_idx, pid in enumerate(ranked_by_sales, start=1):
+            has_signal = mix_buys[pid] > 0.0 or raw_pop.get(pid, 0.0) > 0.0
+            sales_rank_norm = max(0.0, 1.0 - math.log(rank_idx) / denom_rank) if has_signal else 0.0
+            global_pop_norm[pid] = (
+                (1.0 - blend_w) * log_pop_norm.get(pid, 0.0) + blend_w * sales_rank_norm
+            )
+    else:
+        global_pop_norm = dict(log_pop_norm)
+
+    if wp.cold_neighbor_pop_prior_weight > 0.0 and base_snap.new_product_ids:
+        for pid in base_snap.new_product_ids:
+            if raw_pop.get(pid, 0.0) > 0.0:
+                continue
+            nbs = base_snap.cold_neighbors.get(pid)
+            if not nbs:
+                continue
+            sim_sum = 0.0
+            pop_sum = 0.0
+            for warm_nb, sim in nbs:
+                if sim > 0.0:
+                    sim_sum += sim
+                    pop_sum += sim * global_pop_norm.get(warm_nb, 0.0)
+            if sim_sum > 0.0:
+                prior_pop = (
+                    wp.cold_neighbor_pop_prior_weight * (pop_sum / sim_sum)
+                    + 0.30 * base_snap.live_trend_norm.get(pid, 0.0)
+                )
+                if prior_pop > global_pop_norm.get(pid, 0.0):
+                    global_pop_norm[pid] = prior_pop
+
+    gamma = min(max(wp.transition_dest_pop_gamma, 0.0), 1.0)
+    raw_trans: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    use_raw = bool(struct_prep["has_raw_transitions"])
+    for src, dst, base_sc in struct_prep["trans_edges"]:
+        if use_raw:
+            dst_pop = max(math.expm1(raw_pop.get(dst, 0.0)), 0.0)
+            lift_score = base_sc / ((dst_pop + cfg.lift_prior_pop) ** cfg.lift_beta)
+        else:
+            lift_score = base_sc
+        if gamma > 0.0:
+            lift_score *= (1.0 - gamma) + gamma * global_pop_norm.get(dst, 0.25)
+        raw_trans[src].append((dst, lift_score))
+
+    transitions: dict[str, tuple[tuple[str, float], ...]] = {}
+    for src, edges in raw_trans.items():
+        edges.sort(key=lambda kv: kv[1], reverse=True)
+        top_edges = edges[:35]
+        max_s = top_edges[0][1] if top_edges else 1.0
+        if max_s > 0.0:
+            transitions[src] = tuple((dst, sc / max_s) for dst, sc in top_edges)
+
+    fallback_scores: dict[str, float] = {}
+    tie_mode = wp.tie_break_mode
+    for pid in active_ids:
+        p_obj = base_snap.products[pid]
+        pop_s = global_pop_norm.get(pid, 0.0) + 0.6 * base_snap.live_trend_norm.get(pid, 0.0)
+        lp_s = math.log1p(max(p_obj.price_eur, 0.0)) / base_snap.max_log_price
+        if tie_mode == "cheap":
+            tie_term = -abs(wp.revenue_tie_weight or -0.08) * lp_s
+        elif tie_mode == "conversion":
+            tie_term = 0.0
+        else:
+            tie_term = wp.revenue_tie_weight * lp_s
+        fallback_scores[pid] = pop_s + tie_term + (0.02 if p_obj.is_new else 0.0)
+
+    fallback_ranked = tuple(
+        sorted(active_ids, key=lambda pid: (fallback_scores[pid], pid), reverse=True)
+    )
+    return global_pop_norm, transitions, fallback_ranked
+
+
 def _update_snapshot_for_profile(
     base_snap: RecommenderSnapshotV4,
     wp: WeightsProfile,
     *,
     base_ucb_alpha: float,
+    struct_prep: dict[str, Any] | None = None,
 ) -> tuple[RecommenderSnapshotV4, ConfigV4]:
-    """Attach updated WeightsProfile, ConfigV4, ranker weights, and UCB cache in <20ms."""
-    cfg = ConfigV4.from_profile(wp, model_version="calypso-4.1f")
+    """Attach updated WeightsProfile, ConfigV4, ranker weights, 5.1 base-rate/transitions, and UCB cache."""
+    cfg = ConfigV4.from_profile(wp, model_version=MODEL_VERSION_LABEL)
     base_ranker = base_snap.ranker
     pw = wp.prior_weights_array()
     if base_ranker is not None:
@@ -199,9 +402,42 @@ def _update_snapshot_for_profile(
             max_prior_multiplier=wp.max_prior_multiplier,
         )
 
+    base_wp = base_snap.weights_profile
+    struct_changed = False
+    global_pop_norm = base_snap.global_pop_norm
+    transitions = base_snap.transitions
+    fallback_ranked = base_snap.fallback_ranked
+
+    if struct_prep is not None and (
+        base_wp is None
+        or base_wp.use_sales_rank_base_rate != wp.use_sales_rank_base_rate
+        or abs(base_wp.sales_rank_blend_weight - wp.sales_rank_blend_weight) > 1e-6
+        or abs(base_wp.live_pop_mix_weight - wp.live_pop_mix_weight) > 1e-6
+        or abs(base_wp.cold_neighbor_pop_prior_weight - wp.cold_neighbor_pop_prior_weight) > 1e-6
+        or abs(base_wp.transition_dest_pop_gamma - wp.transition_dest_pop_gamma) > 1e-6
+        or base_wp.tie_break_mode != wp.tie_break_mode
+        or abs(base_wp.revenue_tie_weight - wp.revenue_tie_weight) > 1e-6
+    ):
+        global_pop_norm, transitions, fallback_ranked = _recompute_5_1_structures(
+            base_snap, wp, cfg, struct_prep
+        )
+        struct_changed = True
+
     product_static = base_snap.product_static
     overrides = base_snap.agent_overrides
-    if abs(wp.bandit_ucb_alpha - base_ucb_alpha) > 1e-9:
+    bandit_changed = (
+        abs(wp.bandit_ucb_alpha - base_ucb_alpha) > 1e-9
+        or (
+            base_wp is not None
+            and (
+                abs(base_wp.bandit_cold_ucb_multiplier - wp.bandit_cold_ucb_multiplier) > 1e-6
+                or abs(base_wp.bandit_warm_ucb_multiplier - wp.bandit_warm_ucb_multiplier) > 1e-6
+                or base_wp.use_empirical_exam_curve != wp.use_empirical_exam_curve
+                or abs(base_wp.bandit_exam_power - wp.bandit_exam_power) > 1e-6
+            )
+        )
+    )
+    if struct_changed or bandit_changed:
         bandit = PositionAwareBandit(
             exam_power=wp.bandit_exam_power,
             prior_strength=wp.bandit_prior_strength,
@@ -209,21 +445,26 @@ def _update_snapshot_for_profile(
             warm_ucb_multiplier=wp.bandit_warm_ucb_multiplier,
             click_reward=wp.bandit_click_reward,
             purchase_reward=wp.bandit_purchase_reward,
+            use_empirical_exam_curve=wp.use_empirical_exam_curve,
         )
         product_static = build_product_static_table(
             base_snap.products,
             base_snap.active_ids,
-            base_snap.global_pop_norm,
+            global_pop_norm,
             base_snap.live_trend_norm,
             base_snap.max_log_price,
             bandit,
             base_snap.bandit_state,
             wp.bandit_ucb_alpha,
         )
-        overrides = replace(overrides, bandit_ucb_alpha=wp.bandit_ucb_alpha)
+        if overrides is not None:
+            overrides = replace(overrides, bandit_ucb_alpha=wp.bandit_ucb_alpha)
 
     snap = replace(
         base_snap,
+        global_pop_norm=global_pop_norm,
+        transitions=transitions,
+        fallback_ranked=fallback_ranked,
         ranker=cand_ranker,
         weights_profile=wp,
         config_override=cfg,
@@ -357,6 +598,13 @@ def load_real_eval_bundle(
     if snap is None:
         raise FileNotFoundError(f"Missing snapshot cache in {model_root / 'cache'}")
 
+    static_hist = dc.load_static_history()
+    struct_prep = _prepare_structural_tables(
+        snap,
+        getattr(static_hist, "popularity_rows", None) if static_hist else None,
+        getattr(static_hist, "transition_rows", None) if static_hist else None,
+    )
+
     df = pd.read_parquet(data_file)
     if "is_new_user" not in df.columns:
         df["is_new_user"] = ~df["user_id"].isin(snap.user_profiles)
@@ -391,6 +639,7 @@ def load_real_eval_bundle(
     return {
         "snap": snap_clean,
         "base_ucb_alpha": float(snap_clean.agent_overrides.bandit_ucb_alpha),
+        "struct_prep": struct_prep,
         "df_events": df_events,
         "df_bg": df_bg,
         "bg_scale": bg_scale,
@@ -414,6 +663,13 @@ def load_synthetic_eval_bundle(
         n_feedback_sessions=800,
         n_test_sessions=n_test,
     )
+    snap = syn["snap_v4"]
+    v4_rec = syn.get("v4_records") or {}
+    struct_prep = _prepare_structural_tables(
+        snap,
+        v4_rec.get("popularity_rows"),
+        v4_rec.get("transition_rows"),
+    )
     df_test = syn["df_test"]
     cold_ids = syn["cold_product_ids"]
     warm_users = syn["warm_user_ids"]
@@ -422,8 +678,9 @@ def load_synthetic_eval_bundle(
         dtype=bool,
     )
     return {
-        "snap": syn["snap_v4"],
-        "base_ucb_alpha": float(syn["snap_v4"].agent_overrides.bandit_ucb_alpha),
+        "snap": snap,
+        "base_ucb_alpha": float(snap.agent_overrides.bandit_ucb_alpha),
+        "struct_prep": struct_prep,
         "df_all": df_test,
         "df_warm": df_test[~cold_mask],
         "df_cold": df_test[cold_mask],
@@ -479,6 +736,7 @@ def evaluate_candidate(
             real_bundle["snap"],
             wp,
             base_ucb_alpha=real_bundle["base_ucb_alpha"],
+            struct_prep=real_bundle.get("struct_prep"),
         )
         rec_r = CalypsoRecommenderV4(cfg_r)
         real_metrics = _evaluate_real_weighted(
@@ -503,6 +761,7 @@ def evaluate_candidate(
             syn_bundle["snap"],
             wp,
             base_ucb_alpha=syn_bundle["base_ucb_alpha"],
+            struct_prep=syn_bundle.get("struct_prep"),
         )
         rec_s = CalypsoRecommenderV4(cfg_s)
         cold_ids = syn_bundle["cold_product_ids"]
@@ -521,6 +780,116 @@ def evaluate_candidate(
     }
 
 
+def compute_adaptive_intelligence(
+    iterations: list[dict[str, Any]],
+    active_groups: tuple[str, ...] = PARAM_GROUPS,
+) -> dict[str, Any]:
+    """Learn per-parameter and per-group UCB priorities from prior iteration outcomes."""
+    p_trials: dict[str, int] = defaultdict(int)
+    p_wins: dict[str, int] = defaultdict(int)
+    p_pos_gain: dict[str, float] = defaultdict(float)
+    p_abs_impact: dict[str, float] = defaultdict(float)
+
+    g_trials: dict[str, int] = defaultdict(int)
+    g_wins: dict[str, int] = defaultdict(int)
+    g_pos_gain: dict[str, float] = defaultdict(float)
+    g_abs_impact: dict[str, float] = defaultdict(float)
+
+    prev_best = float(iterations[0]["objective"]) if iterations else 0.0
+    for it in iterations[1:]:
+        changed = it.get("changed_params") or {}
+        if not changed:
+            continue
+        obj = float(it.get("objective", prev_best))
+        accepted = bool(it.get("accepted", False))
+        gain = max(0.0, obj - prev_best) if accepted else 0.0
+        sensitivity = abs(obj - prev_best)
+
+        touched_groups: set[str] = set()
+        k_n = max(len(changed), 1)
+        for pname in changed:
+            if pname not in PARAM_SPECS:
+                continue
+            grp = str(PARAM_SPECS[pname][-1])
+            touched_groups.add(grp)
+            p_trials[pname] += 1
+            p_abs_impact[pname] += sensitivity / k_n
+            if accepted:
+                p_wins[pname] += 1
+                p_pos_gain[pname] += gain / k_n
+
+        g_n = max(len(touched_groups), 1)
+        for grp in touched_groups:
+            g_trials[grp] += 1
+            g_abs_impact[grp] += sensitivity / g_n
+            if accepted:
+                g_wins[grp] += 1
+                g_pos_gain[grp] += gain / g_n
+
+        if accepted and obj > prev_best:
+            prev_best = obj
+
+    total_p_trials = sum(p_trials.values()) + 1
+    total_g_trials = sum(g_trials.values()) + 1
+
+    group_scores: dict[str, float] = {}
+    for grp in active_groups:
+        n_t = g_trials[grp]
+        win_rate = g_wins[grp] / max(n_t, 1)
+        mean_gain = (g_pos_gain[grp] * 120.0) / max(n_t, 1)
+        mean_sens = min((g_abs_impact[grp] * 18.0) / max(n_t, 1), 0.65)
+        explore = 0.85 * math.sqrt(math.log(total_g_trials + 1.0) / (n_t + 1.0))
+        group_scores[grp] = max(0.15, 0.35 + win_rate * 1.4 + mean_gain + mean_sens + explore)
+
+    param_scores: dict[str, float] = {}
+    for pname, spec in PARAM_SPECS.items():
+        if spec[-1] not in active_groups:
+            continue
+        n_t = p_trials[pname]
+        win_rate = p_wins[pname] / max(n_t, 1)
+        mean_gain = (p_pos_gain[pname] * 140.0) / max(n_t, 1)
+        mean_sens = min((p_abs_impact[pname] * 22.0) / max(n_t, 1), 0.60)
+        explore = 0.90 * math.sqrt(math.log(total_p_trials + 1.0) / (n_t + 1.0))
+        param_scores[pname] = max(0.15, 0.30 + win_rate * 1.6 + mean_gain + mean_sens + explore)
+
+    top_learned = sorted(
+        (
+            {
+                "param": k,
+                "group": PARAM_SPECS[k][-1],
+                "trials": p_trials[k],
+                "wins": p_wins[k],
+                "ucb_score": round(v, 4),
+            }
+            for k, v in param_scores.items()
+            if p_trials[k] > 0
+        ),
+        key=lambda r: (r["wins"], r["ucb_score"]),
+        reverse=True,
+    )[:12]
+
+    return {
+        "group_scores": group_scores,
+        "param_scores": param_scores,
+        "group_trials": dict(g_trials),
+        "group_wins": dict(g_wins),
+        "top_learned_params": top_learned,
+    }
+
+
+def _weighted_sample(
+    rng: np.random.Generator,
+    candidates: list[str],
+    scores: dict[str, float],
+    k: int,
+) -> list[str]:
+    if k >= len(candidates):
+        return list(candidates)
+    weights = np.array([max(float(scores.get(c, 0.25)), 1e-4) for c in candidates], dtype=float)
+    probs = weights / weights.sum()
+    return [str(x) for x in rng.choice(candidates, size=k, replace=False, p=probs)]
+
+
 def _propose_candidate(
     best_wp: WeightsProfile,
     rng: np.random.Generator,
@@ -528,14 +897,18 @@ def _propose_candidate(
     total_iters: int,
     seen_sigs: set[str],
     last_accepted_delta: dict[str, Any] | None,
+    intel: dict[str, Any],
+    active_groups: tuple[str, ...],
 ) -> tuple[WeightsProfile, str, dict[str, dict[str, Any]]]:
-    """Generate a diverse, non-duplicate candidate WeightsProfile using multi-phase proposals."""
+    """Generate a non-duplicate candidate WeightsProfile guided by adaptive UCB parameter priorities."""
     frac = step_idx / max(total_iters, 1)
+    group_scores = intel["group_scores"]
+    param_scores = intel["param_scores"]
+    active_pool = [k for k, v in PARAM_SPECS.items() if v[-1] in active_groups]
 
     for attempt in range(25):
         updates: dict[str, Any] = {}
 
-        # Momentum move right after an accepted improvement
         if attempt == 0 and last_accepted_delta and rng.random() < 0.30:
             strategy = "momentum"
             for pname, dval in last_accepted_delta.items():
@@ -545,32 +918,30 @@ def _propose_candidate(
                     cur = float(get_param_value(best_wp, pname))
                     updates[pname] = round(min(max(cur + float(dval) * 0.65, lo), hi), 4)
         else:
-            if frac <= 0.35:
-                # Early exploration: cross-group or structural/business-rule moves
-                mode = "explore_broad" if rng.random() < 0.55 else f"group:{rng.choice(PARAM_GROUPS)}"
+            picked_grp = _weighted_sample(rng, list(active_groups), group_scores, 1)[0]
+            if frac <= 0.30:
+                mode = "explore_broad" if rng.random() < 0.45 else f"group:{picked_grp}"
             elif frac <= 0.75:
-                # Mid phase: focused group optimization
-                mode = f"group:{rng.choice(PARAM_GROUPS)}"
+                mode = f"group:{picked_grp}"
             else:
-                # Late phase: fine 1-2 parameter local polish
                 mode = "fine_tune"
 
             strategy = mode
             if mode == "explore_broad":
-                pool = list(PARAM_SPECS.keys())
-                n_pick = int(rng.integers(3, 7))
-                temp = 1.15
+                pool = active_pool
+                n_pick = int(rng.integers(3, 6))
+                temp = 1.10
             elif mode.startswith("group:"):
                 grp = mode.split(":", 1)[1]
-                pool = [k for k, v in PARAM_SPECS.items() if v[-1] == grp]
-                n_pick = int(rng.integers(2, min(5, len(pool)) + 1))
+                pool = [k for k in active_pool if PARAM_SPECS[k][-1] == grp]
+                n_pick = int(rng.integers(2, min(4, len(pool)) + 1))
                 temp = max(0.45, 1.0 - 0.5 * frac)
             else:
-                pool = list(PARAM_SPECS.keys())
+                pool = active_pool
                 n_pick = int(rng.integers(1, 3))
                 temp = 0.40
 
-            chosen = list(rng.choice(pool, size=min(n_pick, len(pool)), replace=False))
+            chosen = _weighted_sample(rng, pool, param_scores, min(n_pick, len(pool)))
             for pname in chosen:
                 spec = PARAM_SPECS[pname]
                 cur = get_param_value(best_wp, pname)
@@ -608,13 +979,12 @@ def _propose_candidate(
             if changed_diff:
                 return cand_wp, strategy, changed_diff
 
-    # Fallback single-parameter perturbation if crowded
-    pname = str(rng.choice(list(PARAM_SPECS.keys())))
+    pname = str(rng.choice(active_pool))
     spec = PARAM_SPECS[pname]
     cur = get_param_value(best_wp, pname)
     if spec[0] == "float":
         _, lo, hi, _, _ = spec
-        cand_val = round(float(rng.uniform(lo, hi)), 4)
+        cand_val: Any = round(float(rng.uniform(lo, hi)), 4)
     elif spec[0] == "int":
         _, lo, hi, _, _ = spec
         cand_val = int(rng.integers(lo, hi + 1))
@@ -660,10 +1030,12 @@ def run_odyseus_optimization(
     save_best: bool = False,
     target_profile_path: Path | None = None,
     offline_cache_dir: Path | None = None,
+    focus_groups: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
-    """Run Odyseus iterative parameter search and persist every iteration to a single archive file."""
+    """Run Odyseus adaptive parameter search and persist every iteration to a single archive file."""
     repo_root = model_root.parent
     off_dir = offline_cache_dir or (repo_root / "offline_eval_cache")
+    active_groups = tuple(g for g in (focus_groups or PARAM_GROUPS) if g in PARAM_GROUPS) or PARAM_GROUPS
 
     real_bundle = (
         load_real_eval_bundle(
@@ -743,9 +1115,11 @@ def run_odyseus_optimization(
         iterations.append(entry)
         seen_sigs.add(profile_signature(wp))
 
+        intel_now = compute_adaptive_intelligence(iterations, active_groups=active_groups)
         archive = {
-            "model": "calypso-4.1f",
+            "model": MODEL_VERSION_LABEL,
             "eval_mode": eval_mode,
+            "selector_mode": "adaptive_ucb_bandit",
             "objective_formula": (
                 "0.65*real_conv + 0.35*syn_conv"
                 if eval_mode == "hybrid"
@@ -760,12 +1134,18 @@ def run_odyseus_optimization(
             "best_objective": best_obj,
             "best_metrics": best_metrics,
             "best_params": best_wp.to_dict(),
+            "selector_summary": {
+                "active_groups": list(active_groups),
+                "group_trials": intel_now["group_trials"],
+                "group_wins": intel_now["group_wins"],
+                "top_learned_params": intel_now["top_learned_params"],
+            },
             "iterations": iterations,
         }
         _atomic_write_json(history_path, archive)
 
         tag = "BEST*" if accepted else "     "
-        print(f"[iter {iter_num:03d}] {tag} [{strategy:<22}] {_compact_metrics_line(res)}")
+        print(f"[iter {iter_num:03d}] {tag} [{strategy:<25}] {_compact_metrics_line(res)}")
         return accepted
 
     cur_iter = start_iter
@@ -790,6 +1170,7 @@ def run_odyseus_optimization(
 
     last_accepted_delta: dict[str, Any] | None = None
     for step in range(1, max(iters, 0) + 1):
+        intel = compute_adaptive_intelligence(iterations, active_groups=active_groups)
         cand_wp, strategy, changed_diff = _propose_candidate(
             best_wp,
             rng,
@@ -797,9 +1178,10 @@ def run_odyseus_optimization(
             iters,
             seen_sigs,
             last_accepted_delta,
+            intel,
+            active_groups,
         )
         res_c = evaluate_candidate(cand_wp, eval_mode=eval_mode, real_bundle=real_bundle, syn_bundle=syn_bundle)
-        prev_best = best_wp
         accepted = _record_iteration(cur_iter, cand_wp, strategy, changed_diff, res_c)
         if accepted:
             delta_map: dict[str, Any] = {}
@@ -820,8 +1202,8 @@ def run_odyseus_optimization(
         best_wp,
         profile_name=final_name,
         description=(
-            f"Odyseus best profile (iter={best_iter}, mode={eval_mode}, "
-            f"obj={best_obj:.5f} vs baseline={baseline_obj:.5f})."
+            f"Odyseus ({MODEL_VERSION_LABEL}) best profile "
+            f"(iter={best_iter}, mode={eval_mode}, obj={best_obj:.5f} vs baseline={baseline_obj:.5f})."
         ),
     )
 
@@ -830,7 +1212,7 @@ def run_odyseus_optimization(
         print(f"[ODYSEUS] Saved optimal profile '{final_wp.profile_name}' -> {target_profile_path}")
 
     print(
-        f"\n=== Odyseus Optimization Summary ===\n"
+        f"\n=== Odyseus Optimization Summary ({MODEL_VERSION_LABEL}) ===\n"
         f"History archive : {history_path}\n"
         f"Total iterations: {len(iterations)} (best at iter {best_iter})\n"
         f"Baseline obj    : {baseline_obj:.6f}\n"
@@ -847,7 +1229,7 @@ def run_odyseus_optimization(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Odyseus Offline Iterative Conversion Optimizer")
+    parser = argparse.ArgumentParser(description="Odyseus Offline Iterative Conversion Optimizer (calypso-5.1f)")
     parser.add_argument(
         "--eval-mode",
         choices=("hybrid", "real", "synthetic"),
@@ -868,7 +1250,7 @@ def main() -> None:
     parser.add_argument(
         "--no-preset-warmup",
         action="store_true",
-        help="Skip initial built-in preset sweep before hill-climbing",
+        help="Skip initial built-in preset sweep before adaptive search",
     )
     parser.add_argument("--resume", action="store_true", help="Resume appending to existing history archive")
     parser.add_argument(
@@ -877,6 +1259,13 @@ def main() -> None:
         default="",
         help="Path to single JSON archive file (default: odyseus/results/odyseus_history.json)",
     )
+    parser.add_argument(
+        "--focus-groups",
+        nargs="+",
+        choices=PARAM_GROUPS,
+        default=None,
+        help="Optional subset of parameter groups to optimize",
+    )
     parser.add_argument("--save-best", action="store_true", help="Write best profile to weights_profile.json")
     args = parser.parse_args()
 
@@ -884,11 +1273,9 @@ def main() -> None:
     cfg = ConfigV4()
     target_profile = cfg.resolve_weights_profile_path()
     base_wp = get_preset(args.preset) if args.preset else load_active_profile(target_profile)
-    history_path = (
-        Path(args.history_file)
-        if args.history_file
-        else (model_root / "results" / "odyseus_history.json")
-    )
+    history_path = Path(args.history_file) if args.history_file else (model_root / "results" / "odyseus_history.json")
+    if not history_path.is_absolute():
+        history_path = model_root / history_path
 
     run_odyseus_optimization(
         model_root,
@@ -904,6 +1291,7 @@ def main() -> None:
         resume=args.resume,
         save_best=args.save_best,
         target_profile_path=target_profile,
+        focus_groups=tuple(args.focus_groups) if args.focus_groups else None,
     )
 
 

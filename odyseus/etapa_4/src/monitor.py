@@ -147,7 +147,7 @@ def run_dry_run() -> None:
     """Validate monitor aggregation locally with realistic mixed feedback."""
     sample_rows = [
         {
-            "model_version": "calypso-4.1f",
+            "model_version": "calypso-5.1f",
             "served_by": "team",
             "latency_ms": 420.0,
             "clicked": "p_0001",
@@ -155,7 +155,7 @@ def run_dry_run() -> None:
             "revenue_eur": 79.9,
         },
         {
-            "model_version": "calypso-4.1f",
+            "model_version": "calypso-5.1f",
             "served_by": "team",
             "latency_ms": 610.0,
             "clicked": "p_0002",
