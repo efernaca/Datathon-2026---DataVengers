@@ -7,3 +7,7 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 material_obsolet/
+
+# Etapa 1 versión especial
+etapa_1_version_especial/cache/
+etapa_1_version_especial/logs/
