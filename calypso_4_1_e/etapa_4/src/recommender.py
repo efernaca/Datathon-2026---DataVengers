@@ -23,6 +23,32 @@ from .ease import fit_ease_from_transitions
 from .guardrails import ensure_valid_submission
 from .reranker import NUM_FEATURES, PositionDebiasedRanker, build_ips_training_dataset
 from .state import ProductInfo, RecommenderSnapshotV4, UserProfile
+from .weights_profile import WeightsProfile
+
+
+def classify_user_segment(is_new_user: bool, has_views: bool, has_profile: bool) -> str:
+    """Classify request into one of 5 canonical segments for modular signal weighting."""
+    if is_new_user:
+        return "new_with_views" if has_views else "new_no_views"
+    if not has_profile:
+        return "new_with_views" if has_views else "known_cold"
+    return "known_with_views" if has_views else "known_with_history"
+
+
+def _compute_price_compat(
+    lp: float,
+    mean_lp: float,
+    std_lp: float,
+    *,
+    z2_clip: float = 6.0,
+    cheap_asymmetry: float = 0.0,
+) -> float:
+    z = (lp - mean_lp) / std_lp
+    z2 = z * z
+    compat = math.exp(-0.5 * (z2 if z2 < z2_clip else z2_clip))
+    if cheap_asymmetry > 0.0 and z < 0.0:
+        compat *= 1.0 + cheap_asymmetry * min(-z, 2.0) * 0.5
+    return compat
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -272,6 +298,9 @@ def build_product_static_table(
 def _prepare_request_signals(
     snapshot: RecommenderSnapshotV4,
     parsed: tuple[str, bool, str, str, str, list[str]],
+    *,
+    recency_decay: float = 0.65,
+    price_std_floor: float = 0.45,
 ) -> tuple[
     dict[str, float],
     dict[str, float],
@@ -295,7 +324,7 @@ def _prepare_request_signals(
     rev_graft_scores: dict[str, float] = {}
     self_view_scores: dict[str, float] = {}
 
-    decay = 0.65
+    decay = recency_decay
     for rev_idx, seen_pid in enumerate(reversed(recent_views)):
         w_rec = decay**rev_idx
         if seen_pid in snapshot.active_ids and seen_pid not in self_view_scores:
@@ -351,7 +380,7 @@ def _prepare_request_signals(
         if profile.log_price_mean > 0.0:
             has_price_hist = True
             mean_lp = profile.log_price_mean
-            std_lp = max(profile.log_price_std, 0.45)
+            std_lp = max(profile.log_price_std, price_std_floor)
 
     anchor_subcat = ""
     anchor_brand = ""
@@ -383,11 +412,18 @@ def _extract_feature_matrix(
     request: Mapping[str, Any] | Any,
     candidate_ids: Sequence[str],
     parsed: tuple[str, bool, str, str, str, list[str]] | None = None,
+    *,
+    weights_profile: WeightsProfile | None = None,
 ) -> np.ndarray:
     """Vectorized 14-feature builder used cleanly for IPS Re-Ranker training."""
     n = len(candidate_ids)
     if n == 0:
         return np.empty((0, NUM_FEATURES), dtype=np.float64)
+
+    wp = weights_profile if weights_profile is not None else snapshot.weights_profile
+    std_floor = wp.price_std_floor if wp is not None else 0.45
+    z2_clip = wp.price_z2_clip if wp is not None else 6.0
+    cheap_asym = wp.price_cheap_asymmetry if wp is not None else 0.0
 
     p = parsed if parsed is not None else _parse_request_fields(request)
     (
@@ -404,7 +440,7 @@ def _extract_feature_matrix(
         anchor_subcat,
         anchor_brand,
         _,
-    ) = _prepare_request_signals(snapshot, p)
+    ) = _prepare_request_signals(snapshot, p, price_std_floor=std_floor)
 
     max_lp = max(snapshot.max_log_price, 1e-6)
     X = np.zeros((n, NUM_FEATURES), dtype=np.float64)
@@ -426,9 +462,13 @@ def _extract_feature_matrix(
 
             if has_price_hist and lp_norm > 0.0:
                 lp = lp_norm * max_lp
-                z = (lp - mean_lp) / std_lp
-                z2 = z * z
-                X[idx, 4] = math.exp(-0.5 * (z2 if z2 < 6.0 else 6.0))
+                X[idx, 4] = _compute_price_compat(
+                    lp,
+                    mean_lp,
+                    std_lp,
+                    z2_clip=z2_clip,
+                    cheap_asymmetry=cheap_asym,
+                )
             X[idx, 6] = gpop
             X[idx, 7] = ltrend
             X[idx, 8] = is_new_f
@@ -470,9 +510,11 @@ def build_snapshot_v4_from_records(
     live_cart_event_rows: Iterable[Mapping[str, Any]] = (),
     feedback_purchase_rows: Iterable[Mapping[str, Any]] = (),
     cart_state: tuple[Any, Any, Any] | None = None,
+    weights_profile: WeightsProfile | None = None,
 ) -> tuple[RecommenderSnapshotV4, list[dict[str, Any]]]:
     """Construct complete RecommenderSnapshotV4 with precomputed FastLoop vectors."""
     cfg = config or ConfigV4()
+    wp = weights_profile if weights_profile is not None else cfg.load_weights_profile()
     oos_set = frozenset(str(x).strip() for x in out_of_stock_ids if x)
     products, active_ids, new_product_ids, max_log_price = _build_products(
         catalog_rows,
@@ -527,7 +569,7 @@ def build_snapshot_v4_from_records(
         lift_score = raw_score / ((dst_pop + cfg.lift_prior_pop) ** cfg.lift_beta)
         raw_trans[src].append((dst, lift_score))
 
-    ease_w = min(max(float(cfg.v3_ease_weight), 0.0), 1.0)
+    ease_w = min(max(float(wp.v3_ease_weight if weights_profile is not None else cfg.v3_ease_weight), 0.0), 1.0)
     ease_neighbors = (
         fit_ease_from_transitions(
             pop_rows_list,
@@ -671,23 +713,37 @@ def build_snapshot_v4_from_records(
     ]
     new_infos = [products[pid] for pid in new_product_ids if pid in products]
 
-    cs_index = ColdStartIndexV4()
+    cs_index = ColdStartIndexV4(
+        sparse_cos_weight=wp.cold_sparse_cos_weight,
+        dense_svd_weight=wp.cold_dense_svd_weight,
+        subcat_match_bonus=wp.cold_subcat_match_bonus,
+        cat_match_bonus=wp.cold_cat_match_bonus,
+        brand_match_bonus=wp.cold_brand_match_bonus,
+        price_prox_bonus=wp.cold_price_prox_bonus,
+    )
     cs_index.fit(products, warm_ids)
     cold_neighbors, reverse_cold_neighbors = cs_index.compute_bidirectional(
         sparse_or_cold_targets,
         new_infos,
         top_k_forward=cfg.max_cold_neighbors,
         top_k_reverse=cfg.max_reverse_cold_per_warm,
-        min_similarity=0.08 if cfg.v3_cold_thresholds else 0.0,
-        norm_floor=0.25 if cfg.v3_cold_thresholds else 1e-6,
+        min_similarity=wp.cold_min_similarity,
+        norm_floor=wp.cold_norm_floor,
     )
 
     fallback_scores: dict[str, float] = {}
+    tie_mode = wp.tie_break_mode
     for pid in active_ids:
         p_obj = products[pid]
         pop_s = global_pop_norm.get(pid, 0.0) + 0.6 * live_trend_norm.get(pid, 0.0)
         lp_s = math.log1p(max(p_obj.price_eur, 0.0)) / max_log_price
-        fallback_scores[pid] = pop_s + cfg.revenue_tie_weight * lp_s + (0.02 if p_obj.is_new else 0.0)
+        if tie_mode == "cheap":
+            tie_term = -abs(wp.revenue_tie_weight or -0.08) * lp_s
+        elif tie_mode == "conversion":
+            tie_term = 0.0
+        else:
+            tie_term = wp.revenue_tie_weight * lp_s
+        fallback_scores[pid] = pop_s + tie_term + (0.02 if p_obj.is_new else 0.0)
 
     fallback_ranked = tuple(
         sorted(active_ids, key=lambda pid: (fallback_scores[pid], pid), reverse=True)
@@ -699,14 +755,21 @@ def build_snapshot_v4_from_records(
     fb_list = list(feedback_rows)
     hist_list = list(training_session_rows)
     bandit = PositionAwareBandit(
-        exam_power=cfg.bandit_exam_power,
-        prior_strength=cfg.bandit_prior_strength,
-        cold_ucb_multiplier=cfg.bandit_cold_ucb_multiplier,
+        exam_power=wp.bandit_exam_power,
+        prior_strength=wp.bandit_prior_strength,
+        cold_ucb_multiplier=wp.bandit_cold_ucb_multiplier,
+        warm_ucb_multiplier=wp.bandit_warm_ucb_multiplier,
+        click_reward=wp.bandit_click_reward,
+        purchase_reward=wp.bandit_purchase_reward,
     )
     bandit_source = fb_list if fb_list else hist_list
     bandit_state = bandit.fit_from_feedback(bandit_source, fallback_cvr=self_cvr)
 
-    ranker = PositionDebiasedRanker.from_priors()
+    ranker = PositionDebiasedRanker.from_priors(
+        prior_weights=wp.prior_weights_array(),
+        min_prior_ratios=wp.min_prior_ratios_array(),
+        max_prior_multiplier=wp.max_prior_multiplier,
+    )
     snapshot = RecommenderSnapshotV4(
         version=version,
         built_at=time.time(),
@@ -732,6 +795,7 @@ def build_snapshot_v4_from_records(
         ranker=ranker,
         user_carts=user_carts,
         user_recurrent=user_recurrent,
+        weights_profile=wp,
     )
 
     # Precompute static lookup table once before IPS dataset extraction
@@ -743,24 +807,26 @@ def build_snapshot_v4_from_records(
         max_log_price,
         bandit,
         bandit_state,
-        cfg.bandit_ucb_alpha,
+        wp.bandit_ucb_alpha,
     )
 
     combined_logs = fb_list + hist_list
     if combined_logs:
         X_train, y_train, ips_w = build_ips_training_dataset(
             combined_logs,
-            lambda req, cands: _extract_feature_matrix(snapshot, req, cands),
-            exam_power=cfg.bandit_exam_power,
+            lambda req, cands: _extract_feature_matrix(snapshot, req, cands, weights_profile=wp),
+            exam_power=wp.bandit_exam_power,
             max_sessions=3000,
+            purchase_weight=wp.ips_purchase_weight,
+            click_weight=wp.ips_click_weight,
         )
         ranker.fit(
             X_train,
             y_train,
             ips_w,
-            max_blend_alpha=cfg.ml_max_blend_alpha,
-            min_positives=cfg.ml_min_positives,
-            l2_c=cfg.ml_l2_c,
+            max_blend_alpha=wp.ml_max_blend_alpha,
+            min_positives=wp.ml_min_positives,
+            l2_c=wp.ml_l2_c,
         )
 
     calypso_agent = agent or CalypsoAgent()
@@ -772,10 +838,11 @@ def build_snapshot_v4_from_records(
         fb_list,
         bandit_state,
         ranker,
+        weights_profile=wp,
     )
     snapshot.agent_overrides = overrides
 
-    if overrides.bandit_ucb_alpha != cfg.bandit_ucb_alpha:
+    if overrides.bandit_ucb_alpha != wp.bandit_ucb_alpha:
         snapshot.product_static = build_product_static_table(
             products,
             active_ids,
@@ -881,7 +948,7 @@ class CalypsoRecommenderV4:
         garantizados]; cada bloque se ordena de más barato a más caro si v4_price_ascending.
         Con todos los interruptores CALYPSO_V4_* a 0 reproduce exactamente 3.1b.
         """
-        cfg = self.config
+        cfg = snapshot.config_override if snapshot.config_override is not None else self.config
         parsed = _parse_request_fields(request)
         uid, is_new_user = parsed[0], parsed[1]
 
@@ -927,7 +994,7 @@ class CalypsoRecommenderV4:
         excluded_ids = frozenset(bought_all.difference(recurrent).difference(pinned))
         k_model = k - len(pinned)
         core_excluded = excluded_ids | frozenset(pinned) if pinned else excluded_ids
-        block = self._recommend_core(parsed, snapshot, k_model, core_excluded) if k_model > 0 else []
+        block = self._recommend_core(parsed, snapshot, k_model, core_excluded, _cfg=cfg) if k_model > 0 else []
         if recurrent and k_model > 0:
             block = guarantee_items(block, recurrent[:k_model])
 
@@ -952,8 +1019,12 @@ class CalypsoRecommenderV4:
         snapshot: RecommenderSnapshotV4,
         k: int,
         excluded_ids: frozenset[str],
+        *,
+        _cfg: ConfigV4 | None = None,
     ) -> list[str]:
-        """Slot-Gated scoring 3.1b: pure precision in WARM top slots, UCB exploration in tail/cold slots."""
+        """Modular Slot-Gated scoring driven by WeightsProfile & 5 user segments."""
+        cfg = _cfg if _cfg is not None else self.config
+        wp = snapshot.weights_profile if snapshot.weights_profile is not None else cfg.load_weights_profile()
         uid, is_new_user, _, _, _, recent_views = parsed
         has_session_intent = bool(recent_views)
         is_cold_session = is_new_user or any(
@@ -970,6 +1041,16 @@ class CalypsoRecommenderV4:
                 k=k,
             )
 
+        req_profile = None if is_new_user else snapshot.user_profiles.get(uid)
+        has_profile = req_profile is not None and bool(
+            req_profile.bought_products
+            or req_profile.intent_items
+            or req_profile.subcat_brand_affinity
+            or req_profile.log_price_mean > 0.0
+        )
+        segment = classify_user_segment(is_new_user, has_session_intent, has_profile)
+        m_seq, m_int, m_aff, m_ctx, m_pop, m_trd, m_cld = wp.segment_multipliers(segment)
+
         (
             seq_scores,
             self_view_scores,
@@ -984,18 +1065,31 @@ class CalypsoRecommenderV4:
             anchor_subcat,
             anchor_brand,
             _,
-        ) = _prepare_request_signals(snapshot, parsed)
+        ) = _prepare_request_signals(snapshot, parsed, price_std_floor=wp.price_std_floor)
 
         overrides = snapshot.agent_overrides
         ranker: PositionDebiasedRanker = (
-            snapshot.ranker if snapshot.ranker is not None else PositionDebiasedRanker.from_priors()
+            snapshot.ranker if snapshot.ranker is not None else PositionDebiasedRanker.from_priors(
+                prior_weights=wp.prior_weights_array(),
+                min_prior_ratios=wp.min_prior_ratios_array(),
+                max_prior_multiplier=wp.max_prior_multiplier,
+            )
         )
+        if wp.w_log_price_norm != 0.0:
+            rev_tie_override = None
+        elif wp.tie_break_mode == "cheap":
+            rev_tie_override = -abs(wp.revenue_tie_weight or -0.08)
+        elif wp.tie_break_mode == "conversion":
+            rev_tie_override = 0.0
+        else:
+            rev_tie_override = overrides.revenue_tie_weight
+
         w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13 = (
             ranker.resolve_weights_tuple(
                 blend_alpha_scale=overrides.ml_blend_alpha_scale,
                 reverse_graft_override=overrides.weight_reverse_cold_graft,
                 forward_cold_override=overrides.weight_forward_cold,
-                revenue_tie_override=overrides.revenue_tie_weight,
+                revenue_tie_override=rev_tie_override,
             )
         )
 
@@ -1009,47 +1103,50 @@ class CalypsoRecommenderV4:
         full_scores = [0.0] * n_cands
         cand_subcats = [""] * n_cands
         cand_brands = [""] * n_cands
+        cand_lp = [0.0] * n_cands
         cand_is_new = [False] * n_cands
         cand_confirmed_cold = [False] * n_cands
 
-        if self.config.v3_no_subcat_floor:
+        if wp.v3_no_subcat_floor or cfg.v3_no_subcat_floor:
             subcat_bonus_w = w12
             brand_bonus_w = w13
-        else:  # comportamiento 2.1
-            subcat_bonus_w = max(w12, 0.28)
-            brand_bonus_w = max(w13, 0.12)
-        v3_bg_penalty = self.config.v3_bg_penalty
+        else:
+            subcat_bonus_w = max(w12, wp.subcat_floor_min)
+            brand_bonus_w = max(w13, wp.brand_floor_min)
+        v3_bg_penalty = wp.v3_bg_penalty and cfg.v3_bg_penalty
 
         for idx, pid in enumerate(candidates):
-            s_seq = seq_scores.get(pid, 0.0)
-            if s_seq > 1.8:
-                s_seq = 1.8
-            s_self = self_view_scores.get(pid, 0.0) * 5.0
-            if s_self > 1.2:
-                s_self = 1.2
-            s_intent = intent_scores.get(pid, 0.0)
-            s_ctx = ctx_scores.get(pid, 0.0)
-            s_rev = rev_graft_scores.get(pid, 0.0)
-            s_fwd = fwd_cold_scores.get(pid, 0.0)
+            s_seq = min(seq_scores.get(pid, 0.0), 1.8) * m_seq
+            s_self = min(self_view_scores.get(pid, 0.0) * 5.0, 1.2)
+            s_intent = intent_scores.get(pid, 0.0) * m_int
+            s_ctx = ctx_scores.get(pid, 0.0) * m_ctx
+            s_rev = rev_graft_scores.get(pid, 0.0) * m_cld
+            s_fwd = fwd_cold_scores.get(pid, 0.0) * m_cld
 
             st = product_static.get(pid)
             if st is not None:
                 sc, br, gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b = st
+                cand_lp[idx] = lp_norm
                 s_aff = 0.0
                 if has_aff:
                     s_aff = affinity_map.get((sc, br), 0.0)
                     if s_aff == 0.0:
                         s_aff = affinity_map.get((sc, ""), 0.0) * 0.6
+                    s_aff *= m_aff
 
                 s_pcompat = 0.0
                 if has_price_hist and lp_norm > 0.0:
-                    z = (lp_norm * max_lp - mean_lp) / std_lp
-                    z2 = z * z
-                    s_pcompat = math.exp(-0.5 * (z2 if z2 < 6.0 else 6.0))
+                    s_pcompat = _compute_price_compat(
+                        lp_norm * max_lp,
+                        mean_lp,
+                        std_lp,
+                        z2_clip=wp.price_z2_clip,
+                        cheap_asymmetry=wp.price_cheap_asymmetry,
+                    )
 
                 same_sc = bool(anchor_subcat and sc == anchor_subcat)
                 same_br = bool(anchor_brand and br == anchor_brand)
-                bg_score = w5 * s_ctx + w6 * gpop + w7 * ltrend + exploit_d
+                bg_score = w5 * s_ctx + w6 * (gpop * m_pop) + w7 * (ltrend * m_trd) + exploit_d
                 if (
                     has_session_intent
                     and s_seq == 0.0
@@ -1058,8 +1155,8 @@ class CalypsoRecommenderV4:
                     and s_self == 0.0
                 ):
                     if v3_bg_penalty:
-                        bg_score *= 0.18 if not same_sc else 0.45
-                    elif not same_sc:  # comportamiento 2.1
+                        bg_score *= wp.bg_penalty_same_subcat if same_sc else wp.bg_penalty_diff_subcat
+                    elif not same_sc:
                         bg_score *= 0.25
 
                 score_p = (
@@ -1085,8 +1182,8 @@ class CalypsoRecommenderV4:
                 if is_n and s_rev > 0.35 and exploit_d > 0.02:
                     cand_confirmed_cold[idx] = True
             else:
-                gpop = snapshot.global_pop_norm.get(pid, 0.0)
-                ltrend = snapshot.live_trend_norm.get(pid, 0.0)
+                gpop = snapshot.global_pop_norm.get(pid, 0.0) * m_pop
+                ltrend = snapshot.live_trend_norm.get(pid, 0.0) * m_trd
                 score_p = (
                     w0 * s_seq
                     + w1 * s_self
@@ -1101,21 +1198,22 @@ class CalypsoRecommenderV4:
                 full_scores[idx] = score_p
 
         if has_session_intent:
-            mmr_start = self.config.mmr_start_slot_session
-            subcat_lam = self.config.mmr_subcat_lambda_session
+            mmr_start = wp.mmr_start_slot_session
+            subcat_lam = wp.mmr_subcat_lambda_session
         else:
-            mmr_start = self.config.mmr_start_slot_home
-            subcat_lam = self.config.mmr_subcat_lambda_home
-        brand_lam = overrides.mmr_brand_lambda
+            mmr_start = wp.mmr_start_slot_home
+            subcat_lam = wp.mmr_subcat_lambda_home
+        brand_lam = wp.mmr_brand_lambda if wp.mmr_brand_lambda != cfg.mmr_brand_lambda else overrides.mmr_brand_lambda
 
         picked = [False] * n_cands
         subcat_counts: dict[str, int] = defaultdict(int)
         brand_counts: dict[str, int] = defaultdict(int)
         selected: list[str] = []
 
-        cold_gate = 0 if is_cold_session else self.config.cold_explore_start_slot_warm
-        max_cold_warm = self.config.max_cold_explore_in_warm
+        cold_gate = 0 if is_cold_session else wp.cold_explore_start_slot_warm
+        max_cold_warm = wp.max_cold_explore_in_warm
         new_picked_count = 0
+        tie_mode = wp.tie_break_mode
 
         target_k = min(k, n_cands)
         while len(selected) < target_k:
@@ -1126,6 +1224,7 @@ class CalypsoRecommenderV4:
 
             best_idx = -1
             best_val = -1e18
+            best_tie = -1e18
             for idx in range(n_cands):
                 if picked[idx]:
                     continue
@@ -1141,12 +1240,26 @@ class CalypsoRecommenderV4:
                 if apply_mmr:
                     sc = cand_subcats[idx]
                     br = cand_brands[idx]
-                    if sc and subcat_lam > 0.0:
-                        val -= subcat_lam * subcat_counts[sc]
-                    if br and brand_lam > 0.0:
-                        val -= brand_lam * brand_counts[br]
-                if val > best_val:
+                    if wp.mmr_relative_penalty:
+                        pen = 0.0
+                        if sc and subcat_lam > 0.0:
+                            pen += subcat_lam * subcat_counts[sc]
+                        if br and brand_lam > 0.0:
+                            pen += brand_lam * brand_counts[br]
+                        if pen > 0.0:
+                            mult_p = 1.0 - pen
+                            if mult_p < 0.15:
+                                mult_p = 0.15
+                            val = val * mult_p if val >= 0.0 else val / mult_p
+                    else:
+                        if sc and subcat_lam > 0.0:
+                            val -= subcat_lam * subcat_counts[sc]
+                        if br and brand_lam > 0.0:
+                            val -= brand_lam * brand_counts[br]
+                tie_val = -cand_lp[idx] if tie_mode == "cheap" else (cand_lp[idx] if tie_mode == "revenue" else 0.0)
+                if val > best_val + 1e-9 or (abs(val - best_val) <= 1e-9 and tie_val > best_tie):
                     best_val = val
+                    best_tie = tie_val
                     best_idx = idx
 
             if best_idx < 0:

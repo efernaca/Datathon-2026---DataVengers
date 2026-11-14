@@ -4,6 +4,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
+from .weights_profile import WeightsProfile, load_active_profile
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -60,12 +63,13 @@ def load_dotenv_files() -> None:
 
 @dataclass(frozen=True, slots=True)
 class ConfigV4:
-    """Immutable configuration for Stage 4 (calypso-4.1: 3.1b + reglas de negocio conmutables)."""
+    """Immutable configuration for Stage 4 (calypso-4.1e: modular + reglas de negocio conmutables)."""
 
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "calypso-4.1"
+    model_version: str = "calypso-4.1e"
+    weights_profile_path: str = "weights_profile.json"
 
     # SLA-hardened Fast / Live / Stock cadence timings
     poll_interval_s: float = 0.12
@@ -153,15 +157,99 @@ class ConfigV4:
             return p
         return Path(__file__).resolve().parents[2] / p
 
+    def resolve_weights_profile_path(self) -> Path:
+        """Return absolute path to the modular weights profile JSON."""
+        p = Path(self.weights_profile_path)
+        if p.is_absolute():
+            return p
+        return Path(__file__).resolve().parents[2] / p
+
+    def load_weights_profile(self) -> WeightsProfile:
+        """Load active WeightsProfile from JSON file or CALYPSO_PRESET env."""
+        return load_active_profile(self.resolve_weights_profile_path())
+
     @classmethod
-    def from_env(cls) -> ConfigV4:
-        """Build ConfigV4 from environment variables and project env files."""
+    def from_profile(cls, wp: WeightsProfile, **overrides: Any) -> ConfigV4:
+        """Construct ConfigV4 synchronized with a modular WeightsProfile."""
+        kwargs: dict[str, Any] = {
+            "self_view_weight": wp.w_self_cvr_view,
+            "intent_weight": wp.w_intent_score,
+            "affinity_weight": wp.w_user_affinity,
+            "price_compat_weight": wp.w_price_compat,
+            "ctx_bayes_weight": wp.w_ctx_bayes,
+            "global_pop_weight": wp.w_global_pop,
+            "live_trend_weight": wp.w_live_trend,
+            "weight_forward_cold": wp.w_forward_cold,
+            "weight_reverse_cold_graft": wp.w_reverse_graft,
+            "ml_max_blend_alpha": wp.ml_max_blend_alpha,
+            "ml_min_positives": wp.ml_min_positives,
+            "ml_l2_c": wp.ml_l2_c,
+            "bandit_prior_strength": wp.bandit_prior_strength,
+            "bandit_ucb_alpha": wp.bandit_ucb_alpha,
+            "bandit_cold_ucb_multiplier": wp.bandit_cold_ucb_multiplier,
+            "bandit_exam_power": wp.bandit_exam_power,
+            "cold_explore_start_slot_warm": wp.cold_explore_start_slot_warm,
+            "max_cold_explore_in_warm": wp.max_cold_explore_in_warm,
+            "mmr_start_slot_session": wp.mmr_start_slot_session,
+            "mmr_start_slot_home": wp.mmr_start_slot_home,
+            "mmr_subcat_lambda_session": wp.mmr_subcat_lambda_session,
+            "mmr_subcat_lambda_home": wp.mmr_subcat_lambda_home,
+            "mmr_brand_lambda": wp.mmr_brand_lambda,
+            "revenue_tie_weight": wp.revenue_tie_weight,
+            "v3_no_subcat_floor": wp.v3_no_subcat_floor,
+            "v3_bg_penalty": wp.v3_bg_penalty,
+            "v3_ease_weight": wp.v3_ease_weight,
+            "v4_cart_priority": wp.v4_cart_priority,
+            "v4_cart_active_minutes": wp.v4_cart_active_minutes,
+            "v4_cart_max_slots": wp.v4_cart_max_slots,
+            "v4_forgotten_cart": wp.v4_forgotten_cart,
+            "v4_forgotten_max_slots": wp.v4_forgotten_max_slots,
+            "v4_forgotten_max_days": wp.v4_forgotten_max_days,
+            "v4_price_ascending": wp.v4_price_ascending,
+            "v4_recurrent": wp.v4_recurrent,
+            "v4_recurrent_min_purchases": wp.v4_recurrent_min_purchases,
+            "v4_recurrent_max_slots": wp.v4_recurrent_max_slots,
+            "v4_live_event_purchases": wp.v4_live_event_purchases,
+        }
+        kwargs.update(overrides)
+        return cls(**kwargs)
+
+    @classmethod
+    def from_env(cls, weights_profile_path: str | Path | None = None) -> ConfigV4:
+        """Build ConfigV4 from WeightsProfile, environment variables, and env files."""
         load_dotenv_files()
         defaults = cls()
-        return cls(
+        raw_wp_path = (
+            str(weights_profile_path)
+            if weights_profile_path is not None
+            else (
+                os.environ.get("CALYPSO_WEIGHTS_PROFILE", defaults.weights_profile_path).strip()
+                or defaults.weights_profile_path
+            )
+        )
+        p_obj = Path(raw_wp_path)
+        resolved_wp = p_obj if p_obj.is_absolute() else (Path(__file__).resolve().parents[2] / p_obj)
+        wp = load_active_profile(resolved_wp)
+        return cls.from_profile(
+            wp,
             api_url=os.environ.get("RAWTREE_API_URL", defaults.api_url).strip() or defaults.api_url,
             team_id=os.environ.get("TEAM_ID", defaults.team_id).strip(),
             api_key=os.environ.get("RAWTREE_API_KEY", defaults.api_key).strip(),
             model_version=os.environ.get("MODEL_VERSION", defaults.model_version).strip()
             or defaults.model_version,
+            weights_profile_path=raw_wp_path,
+            v3_no_subcat_floor=_env_bool("CALYPSO_V3_NO_SUBCAT_FLOOR", wp.v3_no_subcat_floor),
+            v3_bg_penalty=_env_bool("CALYPSO_V3_BG_PENALTY", wp.v3_bg_penalty),
+            v3_ease_weight=_env_float("CALYPSO_V3_EASE_WEIGHT", wp.v3_ease_weight),
+            v4_cart_priority=_env_bool("CALYPSO_V4_CART_PRIORITY", wp.v4_cart_priority),
+            v4_cart_active_minutes=_env_float("CALYPSO_V4_CART_ACTIVE_MIN", wp.v4_cart_active_minutes),
+            v4_cart_max_slots=int(_env_float("CALYPSO_V4_CART_MAX_SLOTS", float(wp.v4_cart_max_slots))),
+            v4_forgotten_cart=_env_bool("CALYPSO_V4_FORGOTTEN_CART", wp.v4_forgotten_cart),
+            v4_forgotten_max_slots=int(_env_float("CALYPSO_V4_FORGOTTEN_MAX_SLOTS", float(wp.v4_forgotten_max_slots))),
+            v4_forgotten_max_days=_env_float("CALYPSO_V4_FORGOTTEN_MAX_DAYS", wp.v4_forgotten_max_days),
+            v4_price_ascending=_env_bool("CALYPSO_V4_PRICE_ASC", wp.v4_price_ascending),
+            v4_recurrent=_env_bool("CALYPSO_V4_RECURRENT", wp.v4_recurrent),
+            v4_recurrent_min_purchases=int(_env_float("CALYPSO_V4_RECURRENT_MIN", float(wp.v4_recurrent_min_purchases))),
+            v4_recurrent_max_slots=int(_env_float("CALYPSO_V4_RECURRENT_MAX_SLOTS", float(wp.v4_recurrent_max_slots))),
+            v4_live_event_purchases=_env_bool("CALYPSO_V4_LIVE_EVENT_PURCHASES", wp.v4_live_event_purchases),
         )
