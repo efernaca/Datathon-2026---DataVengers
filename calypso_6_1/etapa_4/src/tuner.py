@@ -1,4 +1,4 @@
-"""Modular profile manager, offline preset evaluator, and iterative conversion optimizer for Calypso 5.1."""
+"""Modular profile manager, offline preset evaluator, and iterative conversion optimizer for Calypso 6.1."""
 from __future__ import annotations
 
 import argparse
@@ -37,14 +37,30 @@ OPTIMIZABLE_PARAMS: dict[str, tuple[float, float, float]] = {
     "w_log_price_norm": (-0.35, 0.15, 0.06),
     "w_same_top_subcat": (0.00, 0.45, 0.06),
     "w_same_top_brand": (0.00, 0.25, 0.04),
+    "w_ease_score": (0.05, 1.20, 0.12),
+    "w_hop2_score": (0.00, 0.70, 0.08),
+    "w_covisit_score": (0.00, 0.75, 0.08),
+    "w_svd_session_sim": (0.00, 0.75, 0.08),
+    "w_svd_user_sim": (0.00, 0.65, 0.08),
+    "w_is_last_viewed": (-0.40, 0.40, 0.08),
+    "w_cart_active_decay": (0.10, 1.20, 0.12),
+    "w_recurrent_log": (0.05, 0.85, 0.10),
+    "w_discount_ratio": (0.00, 0.45, 0.06),
+    "w_same_category": (0.00, 0.45, 0.06),
+    "v3_ease_weight": (0.10, 0.90, 0.10),
+    "hop2_weight": (0.05, 0.55, 0.06),
+    "covisit_blend_weight": (0.05, 0.65, 0.08),
+    "ml_nonlin_blend_alpha": (0.00, 0.85, 0.10),
     "price_cheap_asymmetry": (0.00, 0.90, 0.15),
     "bandit_ucb_alpha": (0.04, 0.28, 0.04),
     "mmr_brand_lambda": (0.00, 0.12, 0.02),
     "sales_rank_blend_weight": (0.20, 0.95, 0.12),
     "transition_dest_pop_gamma": (0.00, 0.85, 0.12),
     "view_base_bonus": (0.00, 0.90, 0.12),
-    "slot1_category_match_bonus": (0.00, 0.50, 0.08),
+    "slot1_category_match_bonus": (0.00, 0.60, 0.08),
     "cart_active_score_bonus": (0.20, 2.20, 0.25),
+    "cold_explore_start_slot_cold": (4.0, 9.0, 1.0),
+    "cold_boost_on_cold_session": (0.60, 1.80, 0.15),
 }
 
 
@@ -92,18 +108,10 @@ def evaluate_profile_on_dataset(
         base_snap = syn["snap_v4"]
         base_ranker = base_snap.ranker
         if base_ranker is not None:
-            pw = wp.prior_weights_array()
-            alpha = base_ranker.ml_blend_alpha
-            eff = (1.0 - alpha) * pw + alpha * base_ranker.ml_weights_raw
-            cand_ranker = PositionDebiasedRanker(
-                prior_weights=pw,
-                effective_weights=eff,
-                ml_weights_raw=base_ranker.ml_weights_raw.copy(),
-                ml_blend_alpha=alpha,
-                train_samples=base_ranker.train_samples,
-                positive_samples=base_ranker.positive_samples,
-                min_prior_ratios=wp.min_prior_ratios_array(),
-                max_prior_multiplier=wp.max_prior_multiplier,
+            cand_ranker = base_ranker.with_updated_priors(
+                wp.prior_weights_array(),
+                wp.min_prior_ratios_array(),
+                wp.max_prior_multiplier,
             )
         else:
             cand_ranker = PositionDebiasedRanker.from_priors(
@@ -242,7 +250,7 @@ def _format_preset_eval_table(results: list[dict[str, Any]]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calypso 5.1 Modular Profile Tuner & Optimizer")
+    parser = argparse.ArgumentParser(description="Calypso 6.1 Modular Profile Tuner & Optimizer")
     parser.add_argument("--profile-path", type=str, default="", help="Path to weights_profile.json")
     parser.add_argument("--list-presets", action="store_true", help="List available built-in presets")
     parser.add_argument("--show", action="store_true", help="Print current active weights profile JSON")
@@ -260,7 +268,7 @@ def main() -> None:
     target_path = cfg.resolve_weights_profile_path()
 
     if args.list_presets:
-        print("=== Calypso 5.1 Built-in Presets ===")
+        print("=== Calypso 6.1 Built-in Presets ===")
         for name in list_presets():
             p = PRESETS[name]
             print(f"- {name:<22}: {p.description}")

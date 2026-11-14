@@ -44,7 +44,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("calypso5_1.serve")
+logger = logging.getLogger("calypso6_1.serve")
 
 
 def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
@@ -1126,9 +1126,9 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
-                "model_name": "calypso 5.1",
+                "model_name": "calypso 6.1",
                 "model_version": cfg.model_version,
-                "folder": "calypso_5_1",
+                "folder": "calypso_6_1",
                 "profile": (
                     snap.weights_profile.profile_name
                     if (snap is not None and snap.weights_profile)
@@ -1179,7 +1179,7 @@ def main() -> None:
         config=cfg,
     )
     logger.info(
-        "Calypso 5.1 LIVE (team=%s, model=%s, profile=%s, pid=%d)",
+        "Calypso 6.1 LIVE (team=%s, model=%s, profile=%s, pid=%d)",
         cfg.team_id,
         cfg.model_version,
         active_wp.profile_name,
@@ -1200,7 +1200,7 @@ def main() -> None:
                 last_batch_size = answered
                 logger.info("[%s] Submitted %d fresh answers", cfg.model_version, answered)
         except Exception as exc:
-            logger.error("Calypso 5.1 FastLoop error: %s", exc)
+            logger.error("Calypso 6.1 FastLoop error: %s", exc)
             time.sleep(0.35)
 
         now_t = time.time()

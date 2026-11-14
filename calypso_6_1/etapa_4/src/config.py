@@ -81,23 +81,23 @@ class ConfigV4:
     cache_dir: str = "cache"
 
     # Fast candidate retrieval & sequential scoring
-    candidate_pool_size: int = 120
+    candidate_pool_size: int = 76
     recency_decay: float = 0.70
     lift_beta: float = 0.45
     lift_prior_pop: float = 30.0
-    self_view_weight: float = 2.25
+    self_view_weight: float = 2.2702
     intent_weight: float = 0.62
     affinity_weight: float = 0.42
     price_compat_weight: float = 0.22
     ctx_bayes_weight: float = 0.36
-    global_pop_weight: float = 0.68
-    live_trend_weight: float = 0.35
+    global_pop_weight: float = 0.72
+    live_trend_weight: float = 0.3585
     weight_forward_cold: float = 0.52
     weight_reverse_cold_graft: float = 0.38
 
     # Slot-Gated ML Re-Ranker & Position-Aware Bandit
-    ml_max_blend_alpha: float = 0.72
-    ml_nonlin_blend_alpha: float = 0.45
+    ml_max_blend_alpha: float = 0.45
+    ml_nonlin_blend_alpha: float = 0.35
     ml_min_positives: int = 25
     ml_l2_c: float = 1.2
     ease_lambda: float = 240.0

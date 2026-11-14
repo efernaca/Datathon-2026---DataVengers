@@ -67,48 +67,48 @@ DEFAULT_PRIOR_WEIGHTS = np.array(
     [
         # 0..13
         1.15,   # seq_lift_score
-        2.10,   # self_cvr_view
+        2.2702, # self_cvr_view
         0.62,   # intent_score
         0.42,   # user_affinity
         0.22,   # price_compat
         0.36,   # ctx_bayes_score
-        0.68,   # global_pop_norm
-        0.35,   # live_trend_norm
+        0.72,   # global_pop_norm
+        0.3585, # live_trend_norm
         0.03,   # is_new_product
         0.38,   # reverse_graft_score
         0.52,   # forward_cold_score
         0.00,   # log_price_norm
-        0.20,   # same_top_subcat
-        0.10,   # same_top_brand
+        0.1856, # same_top_subcat
+        0.1101, # same_top_brand
         # 14..20
-        0.45,   # ease_score
-        0.22,   # hop2_seq_score
-        0.24,   # covisit_score
-        0.36,   # svd_session_sim
-        0.28,   # svd_user_sim
+        0.12,   # ease_score
+        0.00,   # hop2_seq_score
+        0.00,   # covisit_score
+        0.12,   # svd_session_sim
+        0.10,   # svd_user_sim
         0.20,   # is_last_viewed
         0.30,   # view_recency_max
         # 21..28
-        1.25,   # in_active_cart_decay
+        1.30,   # in_active_cart_decay
         0.42,   # in_forgotten_cart_decay
         0.35,   # recurrent_log_norm
         0.16,   # discount_ratio
-        0.18,   # rv_subcat_match_frac
-        0.08,   # rv_brand_match_frac
-        0.18,   # price_ratio_to_rv_mean
-        0.08,   # same_top_cat
+        0.00,   # rv_subcat_match_frac
+        0.00,   # rv_brand_match_frac
+        0.00,   # price_ratio_to_rv_mean
+        0.00,   # same_top_cat
         # 29..39
         0.00,   # is_page_product
         0.00,   # is_page_category
         0.00,   # is_page_home
-        0.22,   # page_prod_x_subcat
-        0.20,   # page_prod_x_seq
-        0.24,   # page_cat_x_pop
-        0.22,   # page_home_x_svd
-        0.30,   # seq_x_self_cvr
-        0.16,   # ease_x_price_compat
-        0.35,   # cart_x_self_cvr
-        0.14,   # cold_sim_x_pop
+        0.00,   # page_prod_x_subcat
+        0.00,   # page_prod_x_seq
+        0.00,   # page_cat_x_pop
+        0.00,   # page_home_x_svd
+        0.16,   # seq_x_self_cvr
+        0.00,   # ease_x_price_compat
+        0.20,   # cart_x_self_cvr
+        0.00,   # cold_sim_x_pop
     ],
     dtype=np.float64,
 )
@@ -448,6 +448,41 @@ class PositionDebiasedRanker:
                 nonlin_temp=nonlin_temp,
             )
         return lin
+
+    def with_updated_priors(
+        self,
+        prior_weights: np.ndarray,
+        min_prior_ratios: np.ndarray,
+        max_prior_multiplier: float,
+    ) -> PositionDebiasedRanker:
+        """Clone ranker updating prior weights while preserving fitted ML & non-linear MLP layers."""
+        pw = _pad_or_trim_1d(np.asarray(prior_weights, dtype=np.float64), NUM_FEATURES, DEFAULT_PRIOR_WEIGHTS)
+        ratios = _pad_or_trim_1d(np.asarray(min_prior_ratios, dtype=np.float64), NUM_FEATURES, _MIN_PRIOR_RATIO)
+        raw_ml = _pad_or_trim_1d(self.ml_weights_raw, NUM_FEATURES, pw)
+        alpha = self.ml_blend_alpha
+        eff = (1.0 - alpha) * pw + alpha * raw_ml
+        return PositionDebiasedRanker(
+            prior_weights=pw,
+            effective_weights=eff,
+            ml_weights_raw=raw_ml.copy(),
+            ml_blend_alpha=alpha,
+            train_samples=self.train_samples,
+            positive_samples=self.positive_samples,
+            min_prior_ratios=ratios,
+            max_prior_multiplier=float(max_prior_multiplier),
+            nl_mean=self.nl_mean,
+            nl_inv_std=self.nl_inv_std,
+            nl_W1=self.nl_W1,
+            nl_b1=self.nl_b1,
+            nl_W2=self.nl_W2,
+            nl_b2=self.nl_b2,
+            nl_W3=self.nl_W3,
+            nl_b3=self.nl_b3,
+            nl_scale=self.nl_scale,
+            nl_offset=self.nl_offset,
+            nl_blend_alpha=self.nl_blend_alpha,
+            val_auc=self.val_auc,
+        )
 
     def export_scratch_record(self, model_version: str, ts_iso: str) -> dict[str, Any]:
         """Serialize ranker weights and diagnostics for team_NN.scratch."""

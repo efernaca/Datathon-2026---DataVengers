@@ -78,27 +78,27 @@ class WeightsProfile:
     )
 
     # ── 40 Prior Weights matching reranker.FEATURE_NAMES exact order ────────────────
-    # 0..13 (Base Stage 4)
+    # 0..13 (Base Stage 4 calibrated conversion priors)
     w_seq_lift: float = 1.15
-    w_self_cvr_view: float = 2.25
+    w_self_cvr_view: float = 2.2702
     w_intent_score: float = 0.62
     w_user_affinity: float = 0.42
     w_price_compat: float = 0.22
     w_ctx_bayes: float = 0.36
-    w_global_pop: float = 0.68
-    w_live_trend: float = 0.35
+    w_global_pop: float = 0.72
+    w_live_trend: float = 0.3585
     w_is_new_product: float = 0.03
     w_reverse_graft: float = 0.38
     w_forward_cold: float = 0.52
     w_log_price_norm: float = 0.00
-    w_same_top_subcat: float = 0.20
-    w_same_top_brand: float = 0.10
+    w_same_top_subcat: float = 0.1856
+    w_same_top_brand: float = 0.1101
     # 14..20 (Collaborative graph & SVD v6)
-    w_ease_score: float = 0.48
-    w_hop2_seq_score: float = 0.24
-    w_covisit_score: float = 0.26
-    w_svd_session_sim: float = 0.38
-    w_svd_user_sim: float = 0.30
+    w_ease_score: float = 0.12
+    w_hop2_seq_score: float = 0.00
+    w_covisit_score: float = 0.00
+    w_svd_session_sim: float = 0.12
+    w_svd_user_sim: float = 0.10
     w_is_last_viewed: float = 0.20
     w_view_recency_max: float = 0.30
     # 21..28 (Continuous cart, recurrent, discount & session coherence)
@@ -106,22 +106,22 @@ class WeightsProfile:
     w_in_forgotten_cart_decay: float = 0.42
     w_recurrent_log_norm: float = 0.35
     w_discount_ratio: float = 0.16
-    w_rv_subcat_match_frac: float = 0.18
-    w_rv_brand_match_frac: float = 0.08
-    w_price_ratio_to_rv_mean: float = 0.18
-    w_same_top_cat: float = 0.08
+    w_rv_subcat_match_frac: float = 0.00
+    w_rv_brand_match_frac: float = 0.00
+    w_price_ratio_to_rv_mean: float = 0.00
+    w_same_top_cat: float = 0.00
     # 29..39 (Page context & explicit second-order interactions)
     w_is_page_product: float = 0.00
     w_is_page_category: float = 0.00
     w_is_page_home: float = 0.00
-    w_page_prod_x_subcat: float = 0.24
-    w_page_prod_x_seq: float = 0.22
-    w_page_cat_x_pop: float = 0.26
-    w_page_home_x_svd: float = 0.24
-    w_seq_x_self_cvr: float = 0.32
-    w_ease_x_price_compat: float = 0.16
-    w_cart_x_self_cvr: float = 0.35
-    w_cold_sim_x_pop: float = 0.14
+    w_page_prod_x_subcat: float = 0.00
+    w_page_prod_x_seq: float = 0.00
+    w_page_cat_x_pop: float = 0.00
+    w_page_home_x_svd: float = 0.00
+    w_seq_x_self_cvr: float = 0.16
+    w_ease_x_price_compat: float = 0.00
+    w_cart_x_self_cvr: float = 0.20
+    w_cold_sim_x_pop: float = 0.00
 
     # ML anchoring ratios (40 elements aligned with FEATURE_NAMES)
     min_prior_ratios: tuple[float, ...] = _DEFAULT_40_MIN_RATIOS
@@ -135,9 +135,9 @@ class WeightsProfile:
     seg_known_cold: tuple[float, ...] = (0.0, 1.12, 1.12, 1.35, 1.22, 1.25, 1.25, 1.10)
 
     # 3 Page Context Matrices x 8: (seq, self_cvr, pop_ctx, aff_intent, ease_svd, cart, recurrent, mmr)
-    page_product: tuple[float, ...] = (1.18, 1.15, 0.88, 1.00, 1.20, 1.05, 1.00, 0.85)
-    page_category: tuple[float, ...] = (0.95, 1.00, 1.22, 1.12, 1.05, 1.00, 1.05, 1.00)
-    page_home: tuple[float, ...] = (0.72, 0.85, 1.28, 1.22, 1.18, 0.95, 1.22, 1.25)
+    page_product: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00)
+    page_category: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00)
+    page_home: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00)
 
     # Price compatibility & tie-breaking
     price_std_floor: float = 0.45
@@ -163,14 +163,14 @@ class WeightsProfile:
     cold_boost_on_cold_session: float = 1.25
 
     # Stage 6.1 Base-Rate, Candidate Pool Quotas & Collaborative Graph Engines
-    candidate_pool_size: int = 120
-    guaranteed_top_sellers_in_pool: int = 22
-    pool_ease_quota: int = 24
-    pool_hop2_quota: int = 14
-    pool_svd_quota: int = 18
-    pool_cold_quota: int = 10
+    candidate_pool_size: int = 76
+    guaranteed_top_sellers_in_pool: int = 16
+    pool_ease_quota: int = 6
+    pool_hop2_quota: int = 0
+    pool_svd_quota: int = 6
+    pool_cold_quota: int = 6
     use_sales_rank_base_rate: bool = True
-    sales_rank_blend_weight: float = 0.85
+    sales_rank_blend_weight: float = 0.95
     live_pop_mix_weight: float = 0.45
     transition_dest_pop_gamma: float = 0.25
     v3_ease_weight: float = 0.32
@@ -187,18 +187,18 @@ class WeightsProfile:
     view_base_bonus: float = 0.48
     recency_decay: float = 0.70
     slot1_category_match_bonus: float = 0.16
-    same_cat_bonus_weight: float = 0.06
-    cart_active_score_bonus: float = 1.35
-    cart_forgotten_score_bonus: float = 0.42
+    same_cat_bonus_weight: float = 0.0593
+    cart_active_score_bonus: float = 1.60
+    cart_forgotten_score_bonus: float = 0.4808
     cart_recency_half_life_min: float = 45.0
     cart_top3_penalty_product: float = 0.0
     cart_top3_penalty_category: float = 0.0
     cart_top3_penalty_home: float = 0.0
-    recurrent_score_bonus: float = 0.28
+    recurrent_score_bonus: float = 0.25
     recurrent_log_scale: float = 0.18
     allow_recurrent_rebuy: bool = True
-    discount_boost_weight: float = 0.16
-    discount_nonlin_gamma: float = 1.2
+    discount_boost_weight: float = 0.15
+    discount_nonlin_gamma: float = 1.0
 
     # Conversion-oriented IPS, Bandit & Non-Linear Hybrid Ensemble
     ips_purchase_weight: float = 2.5
@@ -211,25 +211,25 @@ class WeightsProfile:
     bandit_exam_power: float = 0.70
     use_empirical_exam_curve: bool = True
     bandit_prior_strength: float = 20.0
-    ml_max_blend_alpha: float = 0.72
-    ml_nonlin_blend_alpha: float = 0.45
+    ml_max_blend_alpha: float = 0.45
+    ml_nonlin_blend_alpha: float = 0.35
     ml_min_positives: int = 25
     ml_l2_c: float = 1.2
     ml_nonlin_l2_alpha: float = 2.5
     ml_nonlin_temp: float = 1.0
     enable_nonlin_mlp: bool = True
-    use_multisource_training: bool = True
+    use_multisource_training: bool = False
     train_gold_weight: float = 1.0
-    train_cart_weight: float = 0.55
-    train_intent_weight: float = 0.40
-    train_seq_weight: float = 0.30
+    train_cart_weight: float = 0.0
+    train_intent_weight: float = 0.0
+    train_seq_weight: float = 0.0
 
     # MMR & Background penalties
-    mmr_start_slot_session: int = 6
-    mmr_start_slot_home: int = 4
-    mmr_subcat_lambda_session: float = 0.03
-    mmr_subcat_lambda_home: float = 0.08
-    mmr_brand_lambda: float = 0.03
+    mmr_start_slot_session: int = 7
+    mmr_start_slot_home: int = 6
+    mmr_subcat_lambda_session: float = 0.0425
+    mmr_subcat_lambda_home: float = 0.06
+    mmr_brand_lambda: float = 0.0306
     mmr_relative_penalty: bool = True
     subcat_floor_min: float = 0.24
     brand_floor_min: float = 0.10

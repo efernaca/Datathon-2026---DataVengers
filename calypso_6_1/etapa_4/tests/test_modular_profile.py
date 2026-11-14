@@ -1,4 +1,4 @@
-"""Unit tests for Calypso 5.1 modular WeightsProfile, presets, 5.1 measures, hot-reload, and tuner."""
+"""Unit tests for Calypso 6.1 modular WeightsProfile, presets, 6.1 hybrid architecture, hot-reload, and tuner."""
 from __future__ import annotations
 
 import os
@@ -184,7 +184,7 @@ class TestModularWeightsProfile(unittest.TestCase):
         for pid in expected_top:
             self.assertIn(pid, cands_set)
 
-        # (D6) Last viewed item on product page receives no 0.65 attenuation
+        # (D6 / 6.1) Last viewed item receives page-contextual multiplier (product >= category)
         last_pid = warm_pool[0]
         prev_pid = warm_pool[1]
         _, sv_last_on_product, *_ = _prepare_request_signals(
@@ -193,7 +193,11 @@ class TestModularWeightsProfile(unittest.TestCase):
         _, sv_last_on_category, *_ = _prepare_request_signals(
             snap, ("u_x", False, "Madrid", "web", "category", [prev_pid, last_pid]), weights_profile=wp
         )
-        self.assertAlmostEqual(sv_last_on_product[last_pid], sv_last_on_category[last_pid], places=6)
+        self.assertAlmostEqual(
+            sv_last_on_product[last_pid],
+            sv_last_on_category[last_pid] * wp.view_last_product_page_factor,
+            places=6,
+        )
 
         # (X10) New products without historical sales inherit positive global_pop_norm from neighbors
         cold_with_nbs = [pid for pid in snap.new_product_ids if snap.cold_neighbors.get(pid)]
@@ -206,6 +210,39 @@ class TestModularWeightsProfile(unittest.TestCase):
 
         # (M7) Softened subcategory MMR diversification on home page (<= 0.08)
         self.assertLessEqual(wp.mmr_subcat_lambda_home, 0.08)
+
+    def test_calypso_6_1_hybrid_architecture(self) -> None:
+        wp = PRESETS["conversion_first"]
+        self.assertGreaterEqual(wp.scalar_count(), 220)
+        self.assertEqual(NUM_FEATURES, 40)
+
+        snap = self.syn["snap_v4"]
+        self.assertEqual(snap.ranker.prior_weights.shape, (40,))
+        self.assertTrue(snap.ease_neighbors)
+        self.assertTrue(snap.hop2_transitions)
+        self.assertGreater(snap.svd_item_vectors.shape[0], 0)
+        self.assertEqual(snap.svd_item_vectors.shape[1], wp.svd_dim)
+        self.assertIsNotNone(snap.ranker.nl_W1)
+
+        # Verify page context matrices (3x8) and dynamic lookup
+        p_prod = wp.page_multipliers("product")
+        p_cat = wp.page_multipliers("category")
+        p_home = wp.page_multipliers("home")
+        self.assertEqual(len(p_prod), 8)
+        self.assertEqual(len(p_cat), 8)
+        self.assertEqual(len(p_home), 8)
+        from dataclasses import replace as _dc_replace
+        wp_custom = _dc_replace(wp, page_product=(1.2, 1.1, 0.9, 1.0, 1.15, 1.0, 1.0, 0.9))
+        self.assertNotEqual(wp_custom.page_multipliers("product"), wp_custom.page_multipliers("home"))
+
+        # Verify with_updated_priors preserves distilled MLP matrices
+        cloned = snap.ranker.with_updated_priors(
+            wp.prior_weights_array(),
+            wp.min_prior_ratios_array(),
+            wp.max_prior_multiplier,
+        )
+        self.assertIs(cloned.nl_W1, snap.ranker.nl_W1)
+        self.assertEqual(cloned.prior_weights.shape, (40,))
 
 
 if __name__ == "__main__":
