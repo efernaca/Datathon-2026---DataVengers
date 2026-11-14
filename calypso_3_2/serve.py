@@ -1,4 +1,4 @@
-"""Encapsulated entrypoint for Calypso 3.1 live serving, --self-check, --dry-run, and --watchdog."""
+"""Encapsulated entrypoint for Calypso 3.2 live serving, --self-check, --dry-run, and --watchdog."""
 from __future__ import annotations
 
 import sys

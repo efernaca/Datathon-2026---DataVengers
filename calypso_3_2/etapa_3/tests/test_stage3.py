@@ -1,4 +1,4 @@
-"""Automated test suite for Stage 3 (calypso-2.1)."""
+"""Automated test suite for Stage 3 (calypso-3.2)."""
 from __future__ import annotations
 
 import sys
@@ -39,9 +39,9 @@ class TestStage3Calypso(unittest.TestCase):
 
     def test_config_and_model_version_calypso(self) -> None:
         cfg = ConfigV3()
-        self.assertEqual(cfg.model_version, "calypso-3.1")
+        self.assertEqual(cfg.model_version, "calypso-3.2")
         cfg_env = ConfigV3.from_env()
-        self.assertEqual(cfg_env.model_version, "calypso-3.1")
+        self.assertEqual(cfg_env.model_version, "calypso-3.2")
         self.assertTrue(bool(cfg_env.api_url))
 
     def test_recent_views_parsing_both_formats(self) -> None:
@@ -151,10 +151,10 @@ class TestStage3Calypso(unittest.TestCase):
         answers = fast_loop.answer_batch(test_rows)
         self.assertEqual(len(answers), 40)
         for ans in answers:
-            self.assertEqual(ans["model_version"], "calypso-3.1")
+            self.assertEqual(ans["model_version"], "calypso-3.2")
             self.assertTrue(validate_submission_record(ans, snap_v3.active_ids))
 
-        # Benchmark calypso-2.1 vs baseline on synthetic holdout
+        # Benchmark calypso-3.2 vs baseline on synthetic holdout
         df_test = self.syn["df_test"]
         baseline_top10 = self.syn["baseline_top10"]
         res_base = evaluate_policy(

@@ -1,9 +1,13 @@
-"""Immutable state snapshots and user profiles for Etapa 2 real-time serving."""
+"""Immutable state snapshots and user profiles for Calypso 3.2 Etapa 2."""
 from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import Any
+
+import numpy as np
+import scipy.sparse as sp
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,17 +33,117 @@ class ProductInfo:
         return min(max(drop, 0.0), 0.9)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class UserProfile:
-    """Precomputed historical user state for deep personalization."""
+    """Historical user profile supporting both Stage2Recommender and Stage2Special."""
 
-    user_id: str
+    user_id: str = ""
     bought: frozenset[str] = frozenset()
     intent_items: tuple[tuple[str, float], ...] = ()
     subcat_affinity: tuple[tuple[str, float], ...] = ()
     brand_affinity: tuple[tuple[str, float], ...] = ()
     log_price_mean: float = 0.0
     log_price_std: float = 0.0
+    # Etapa 2 Especial fields
+    subcat: dict[str, float] = field(default_factory=dict)
+    brand: dict[str, float] = field(default_factory=dict)
+    price_mu: float = float("nan")
+    price_sigma: float = float("nan")
+    n_buys: int = 0
+
+
+@dataclass(slots=True)
+class EaseModel:
+    """Closed-form EASE item-item matrix B (n x n, float32) with zero diagonal."""
+
+    item_ids: list[str]
+    B: np.ndarray
+    lam: float = 0.0
+
+    @property
+    def index(self) -> dict[str, int]:
+        return {p: i for i, p in enumerate(self.item_ids)}
+
+
+@dataclass(slots=True)
+class HistoryBundle:
+    """Precomputed 60-day history bundle (persisted via pickle)."""
+
+    catalog_rows: list[dict[str, Any]]
+    pop: dict[str, float]
+    item_stats: dict[str, tuple[float, float, float, float]]
+    ctx_prior: dict[tuple[str, str, str], dict[str, float]]
+    transitions: dict[str, list[tuple[str, float]]]
+    ease: EaseModel | None
+    users: dict[str, UserProfile]
+    visto_stats: dict[str, tuple[float, float]] = field(default_factory=dict)
+    intent: dict[str, tuple[tuple[str, float, float], ...]] = field(default_factory=dict)
+    version: str = ""
+    meta: dict[str, Any] = field(default_factory=dict)
+    ok_components: dict[str, bool] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogState:
+    """Aligned catalog arrays built by CatalogManager (append-only for new products)."""
+
+    version: int
+    ids: tuple[str, ...]
+    idx: dict[str, int]
+    category: np.ndarray
+    subcategory: np.ndarray
+    brand: np.ndarray
+    cat_names: tuple[str, ...]
+    subcat_names: tuple[str, ...]
+    brand_codes: dict[str, int]
+    subcat_codes: dict[str, int]
+    price: np.ndarray
+    log_price: np.ndarray
+    price_rel_z: np.ndarray
+    active: np.ndarray
+    is_new: np.ndarray
+    active_ids: frozenset[str]
+    global_ranked: tuple[str, ...]
+    log_pop_prior: np.ndarray
+    pop_share_prior: np.ndarray
+    subcat_log_pop: np.ndarray
+    cvr_logit: np.ndarray
+    ctx_arrays: dict[tuple[str, str, str], np.ndarray]
+    ease_proj: sp.csr_matrix | None
+    content: sp.csr_matrix
+    cold_neighbors: dict[str, tuple[tuple[str, float], ...]]
+    price_change_rel: np.ndarray
+    price_change_ts: np.ndarray
+    visto_conv: np.ndarray | None = None
+    reverse: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict)
+    created_at: float = 0.0
+
+    @property
+    def n(self) -> int:
+        return len(self.ids)
+
+
+@dataclass(frozen=True, slots=True)
+class LiveView:
+    """D1/V5 aligned live popularity & trend arrays."""
+
+    n_items: int
+    log_pop: np.ndarray
+    trend: np.ndarray
+    total_weight: float = 0.0
+    now_ts: float = 0.0
+    kappa_mult: float = 1.0
+
+
+@dataclass(frozen=True, slots=True)
+class Snapshot:
+    """Immutable snapshot consumed by Stage2Special."""
+
+    history: HistoryBundle
+    catalog: CatalogState
+    live: dict[str, LiveView] = field(default_factory=dict)
+    live_bought: dict[str, frozenset[str]] = field(default_factory=dict)
+    new_impressions: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,16 +214,35 @@ class RecommenderSnapshotV2:
 
 
 class StateStore:
-    """Thread-safe container enabling atomic pointer swaps."""
+    """Thread-safe container enabling atomic swaps & partial updates."""
 
-    def __init__(self, initial: RecommenderSnapshotV2 | None = None) -> None:
+    def __init__(self, initial: Any = None) -> None:
         self._lock = threading.Lock()
         self._snapshot = initial
 
-    def get(self) -> RecommenderSnapshotV2 | None:
-        with self._lock:
-            return self._snapshot
+    def get(self) -> Any:
+        return self._snapshot
 
-    def set(self, snapshot: RecommenderSnapshotV2) -> None:
+    def set(self, snapshot: Any) -> None:
         with self._lock:
             self._snapshot = snapshot
+
+    def update(self, **changes: Any) -> Any:
+        with self._lock:
+            if self._snapshot is None:
+                return None
+            self._snapshot = replace(self._snapshot, **changes)
+            return self._snapshot
+
+    def mutate(self, fn: Any) -> Any:
+        with self._lock:
+            if self._snapshot is None:
+                return None
+            changes = fn(self._snapshot)
+            if changes:
+                self._snapshot = replace(self._snapshot, **changes)
+            return self._snapshot
+
+
+def now_s() -> float:
+    return time.time()

@@ -1,0 +1,10 @@
+{
+  "state": "training",
+  "action": "train_and_activate",
+  "target_folder": "calypso_3_2",
+  "target_name": "calypso 3.2",
+  "progress": 40,
+  "message": "Entrenant 'calypso_3_2' en segon pla (el model en viu no s'atura)...",
+  "started_at": 1794678507.351417,
+  "updated_at": 1794678518.563948
+}

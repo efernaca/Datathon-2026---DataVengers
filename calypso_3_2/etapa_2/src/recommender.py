@@ -62,9 +62,12 @@ def build_snapshot_v2_from_records(
     live_bought_rows: Iterable[Mapping[str, Any]] = (),
     lift_beta: float = 0.45,
     lift_prior_pop: float = 30.0,
+    ctx_kappa: float = 50.0,
     version: int = 1,
     max_cold_neighbors: int = 8,
     max_reverse_cold_per_warm: int = 3,
+    reverse_min_sim: float = 0.45,
+    reverse_same_subcat: bool = True,
 ) -> RecommenderSnapshotV2:
     """Assemble RecommenderSnapshotV2 from RawTree queries or offline tables."""
     products: dict[str, ProductInfo] = {}
@@ -131,7 +134,17 @@ def build_snapshot_v2_from_records(
         sc: _normalize_pairs(pairs, limit=40) for sc, pairs in subcat_buckets.items()
     }
 
-    # 3-level Hierarchical Empirical Bayes Context Rankings
+    # N12: 3-level Hierarchical Empirical Bayes Context Rankings
+    # rate_1 = (n_1 + kappa * global_pop) / (N_1 + kappa)
+    # rate_2 = (n_2 + kappa * rate_1) / (N_2 + kappa)
+    # rate_3 = (n_3 + kappa * rate_2) / (N_3 + kappa)
+    total_pop_mass = sum(max(raw_pop.get(pid, 0.0), 0.0) for pid in active_ids)
+    n_act = max(len(active_ids), 1)
+    pop_share = {
+        pid: (max(raw_pop.get(pid, 0.0), 0.0) / total_pop_mass if total_pop_mass > 0.0 else 1.0 / n_act)
+        for pid in active_ids
+    }
+
     lvl3_buckets: dict[tuple[str, str, str], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     lvl2_buckets: dict[tuple[str, str, str], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     lvl1_buckets: dict[tuple[str, str, str], dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -142,26 +155,41 @@ def build_snapshot_v2_from_records(
         page = str(r.get("page", ""))
         pid = str(r["product_id"])
         buys = float(r.get("buys", r.get("score", 0.0)) or 0.0)
-        if buys > 0.0:
+        if buys > 0.0 and pid in active_ids:
             lvl3_buckets[(reg, dev, page)][pid] += buys
             lvl2_buckets[(reg, "", page)][pid] += buys
             lvl1_buckets[("", "", page)][pid] += buys
 
+    def _eb_rates(
+        counts: Mapping[str, float],
+        prior_map: Mapping[str, float],
+        kappa: float,
+    ) -> dict[str, float]:
+        tot_n = sum(counts.values())
+        denom = tot_n + kappa
+        keys = set(counts) | set(prior_map)
+        return {
+            pid: (counts.get(pid, 0.0) + kappa * prior_map.get(pid, 0.0)) / max(denom, 1e-9)
+            for pid in keys
+        }
+
+    rate1_maps: dict[tuple[str, str, str], dict[str, float]] = {}
+    rate2_maps: dict[tuple[str, str, str], dict[str, float]] = {}
     context_ranked: dict[tuple[str, str, str], tuple[tuple[str, float], ...]] = {}
-    for ctx_key, pid_scores in lvl1_buckets.items():
-        context_ranked[ctx_key] = _normalize_pairs(pid_scores.items(), limit=25)
-    for ctx_key, pid_scores in lvl2_buckets.items():
-        page_prior = dict(context_ranked.get(("", "", ctx_key[2]), ()))
-        blended = dict(pid_scores)
-        for pid, p_s in page_prior.items():
-            blended[pid] = blended.get(pid, 0.0) + 3.0 * p_s
-        context_ranked[ctx_key] = _normalize_pairs(blended.items(), limit=25)
-    for ctx_key, pid_scores in lvl3_buckets.items():
-        reg_prior = dict(context_ranked.get((ctx_key[0], "", ctx_key[2]), ()))
-        blended = dict(pid_scores)
-        for pid, r_s in reg_prior.items():
-            blended[pid] = blended.get(pid, 0.0) + 4.0 * r_s
-        context_ranked[ctx_key] = _normalize_pairs(blended.items(), limit=25)
+
+    for ctx_key, pid_counts in lvl1_buckets.items():
+        r1 = _eb_rates(pid_counts, pop_share, ctx_kappa)
+        rate1_maps[ctx_key] = r1
+        context_ranked[ctx_key] = _normalize_pairs(r1.items(), limit=25)
+    for ctx_key, pid_counts in lvl2_buckets.items():
+        parent = rate1_maps.get(("", "", ctx_key[2]), pop_share)
+        r2 = _eb_rates(pid_counts, parent, ctx_kappa)
+        rate2_maps[ctx_key] = r2
+        context_ranked[ctx_key] = _normalize_pairs(r2.items(), limit=25)
+    for ctx_key, pid_counts in lvl3_buckets.items():
+        parent = rate2_maps.get((ctx_key[0], "", ctx_key[2]), pop_share)
+        r3 = _eb_rates(pid_counts, parent, ctx_kappa)
+        context_ranked[ctx_key] = _normalize_pairs(r3.items(), limit=25)
 
     # Directed session transitions debiased via Bayesian-smoothed Lift + closed-form EASE
     trans_buckets: dict[str, list[tuple[str, float]]] = defaultdict(list)
@@ -280,6 +308,8 @@ def build_snapshot_v2_from_records(
             new_products=new_products,
             top_k_forward=max_cold_neighbors,
             top_k_reverse=max_reverse_cold_per_warm,
+            min_reverse_sim=reverse_min_sim,
+            reverse_same_subcat=reverse_same_subcat,
         )
 
     return RecommenderSnapshotV2(
@@ -316,11 +346,11 @@ class Stage2Recommender:
         k: int,
         has_session_intent: bool,
     ) -> list[str]:
-        """Keep top slots pure; diversify subcategories on cold/home entry and brands lightly."""
+        """N10: Keep top slots pure; apply relative multiplicative MMR diversification."""
         cfg = self.config
-        start_slot = 6 if has_session_intent else cfg.mmr_start_slot
+        start_slot = getattr(cfg, "mmr_start_slot_session", 5) if has_session_intent else cfg.mmr_start_slot
         subcat_lambda = 0.0 if has_session_intent else cfg.mmr_lambda_subcat
-        brand_lambda = min(cfg.mmr_lambda_brand, 0.015) if has_session_intent else cfg.mmr_lambda_brand
+        brand_lambda = min(cfg.mmr_lambda_brand, 0.02) if has_session_intent else cfg.mmr_lambda_brand
 
         if len(ranked_scores) <= start_slot:
             return [pid for pid, _ in ranked_scores[:k]]
@@ -336,19 +366,25 @@ class Stage2Recommender:
                 subcat_counts[info.subcategory] += 1
                 brand_counts[info.brand] += 1
 
-        pool = list(ranked_scores[start_slot : start_slot + 40])
+        pool = list(ranked_scores[start_slot : start_slot + 50])
         while len(selected) < k and pool:
             best_idx = 0
             best_mmr = -1e18
             for idx, (pid, base_score) in enumerate(pool):
                 info = snapshot.products.get(pid)
-                penalty = 0.0
-                if info is not None:
-                    penalty = (
-                        subcat_lambda * subcat_counts[info.subcategory]
-                        + brand_lambda * brand_counts[info.brand]
+                if info is not None and base_score > 0.0:
+                    mult = (
+                        max(0.0, 1.0 - subcat_lambda * subcat_counts[info.subcategory])
+                        * max(0.0, 1.0 - brand_lambda * brand_counts[info.brand])
                     )
-                mmr_val = base_score - penalty
+                    mmr_val = base_score * mult
+                else:
+                    penalty = (
+                        (subcat_lambda * subcat_counts[info.subcategory] + brand_lambda * brand_counts[info.brand])
+                        if info is not None
+                        else 0.0
+                    )
+                    mmr_val = base_score - penalty
                 if mmr_val > best_mmr:
                     best_mmr = mmr_val
                     best_idx = idx
@@ -360,6 +396,30 @@ class Stage2Recommender:
                 brand_counts[info.brand] += 1
 
         return selected
+
+    @staticmethod
+    def _revenue_tiebreak(
+        order: list[str],
+        scores: Mapping[str, float],
+        products: Mapping[str, ProductInfo],
+        eps: float,
+    ) -> list[str]:
+        """N9: Lexicographic revenue tie-break only within |Δscore| < eps * |score|."""
+        if eps <= 0.0 or len(order) < 2:
+            return order
+        out = list(order)
+        for _ in range(2):
+            for a in range(len(out) - 1):
+                pa, pb = out[a], out[a + 1]
+                sa = scores.get(pa, 0.0)
+                sb = scores.get(pb, 0.0)
+                info_a = products.get(pa)
+                info_b = products.get(pb)
+                price_a = info_a.price_eur if info_a is not None else 0.0
+                price_b = info_b.price_eur if info_b is not None else 0.0
+                if abs(sa - sb) < eps * max(abs(sa), 1e-9) and price_b > price_a:
+                    out[a], out[a + 1] = pb, pa
+        return out
 
     def recommend(
         self,
@@ -405,7 +465,7 @@ class Stage2Recommender:
             rank_w = cfg.recent_view_decay ** idx
             if req_ts is not None and v_ts is not None and req_ts >= v_ts:
                 dt_sec = req_ts - v_ts
-                time_w = math.exp(-dt_sec / cfg.time_decay_half_life_sec)
+                time_w = math.exp(-math.log(2.0) * dt_sec / cfg.time_decay_half_life_sec)
                 w = rank_w * (0.5 + 0.5 * time_w)
             else:
                 w = rank_w
@@ -510,10 +570,6 @@ class Stage2Recommender:
                         profile.log_price_std, 0.35
                     )
                     val += cfg.weight_user_price_fit * math.exp(-0.5 * z * z)
-                avg_sub_p = snapshot.subcat_avg_price.get(info.subcategory, 0.0)
-                if avg_sub_p > 0.0 and cfg.revenue_tie_alpha > 0.0:
-                    rel_price = min(info.price_eur / avg_sub_p, 2.0)
-                    val *= 1.0 + cfg.revenue_tie_alpha * rel_price
 
             scores[pid] = val
 
@@ -529,6 +585,12 @@ class Stage2Recommender:
                 bool(recent_views)
                 or (profile is not None and bool(profile.subcat_affinity or profile.intent_items))
             ),
+        )
+        diversified = self._revenue_tiebreak(
+            diversified,
+            scores,
+            snapshot.products,
+            getattr(cfg, "revenue_eps", 0.015),
         )
 
         return ensure_valid_submission(

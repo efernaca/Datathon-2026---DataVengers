@@ -1,6 +1,7 @@
-"""Slot-Gated Calypso-2.1 recommender with precomputed static item vectors (<1 ms/req)."""
+"""Slot-Gated Calypso-3.2 recommender (Stage 2 Especial N6-N13 + EASE + IPS/Bandit/Agent)."""
 from __future__ import annotations
 
+from datetime import datetime
 import math
 import time
 from collections import defaultdict
@@ -29,6 +30,19 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     return default if math.isnan(res) else res
 
 
+def _parse_iso_seconds(ts_raw: Any) -> float | None:
+    if ts_raw is None or ts_raw == "":
+        return None
+    if isinstance(ts_raw, (int, float)):
+        return float(ts_raw)
+    if not isinstance(ts_raw, str):
+        return None
+    try:
+        return datetime.fromisoformat(ts_raw.strip().replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 def extract_recent_product_ids(raw_recent: Any) -> list[str]:
     """Parse recent_views accepting either RawTree dict items or plain string IDs."""
     out: list[str] = []
@@ -51,13 +65,38 @@ def extract_recent_product_ids(raw_recent: Any) -> list[str]:
     return out
 
 
-def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[str]]:
-    """Extract (user_id, is_new_user, region, device, page, recent_views) from dict or row."""
+def _extract_recent_with_ts(raw_recent: Any) -> list[tuple[str, float | None]]:
+    """Parse recent_views keeping optional event timestamps for N13 half-life decay."""
+    out: list[tuple[str, float | None]] = []
+    if raw_recent is None:
+        return out
+    try:
+        if len(raw_recent) == 0:
+            return out
+    except TypeError:
+        pass
+    for item in raw_recent:
+        if isinstance(item, Mapping):
+            pid = item.get("product_id")
+            if pid:
+                out.append((str(pid).strip(), _parse_iso_seconds(item.get("ts"))))
+        elif item:
+            s_pid = str(item).strip()
+            if s_pid:
+                out.append((s_pid, None))
+    return out
+
+
+def _parse_request_fields_full(
+    request: Any,
+) -> tuple[str, bool, str, str, str, list[tuple[str, float | None]], float | None]:
+    """Extract request fields plus timestamps for N13 real half-life weighting."""
     if isinstance(request, Mapping):
         user_id = str(request.get("user_id") or "").strip()
         is_new_user = bool(request.get("is_new_user", False))
         ctx = request.get("context")
         raw_recent = request.get("recent_views")
+        req_ts = _parse_iso_seconds(request.get("ts"))
         if isinstance(ctx, Mapping):
             region = str(ctx.get("region") or "").strip()
             device = str(ctx.get("device") or "").strip()
@@ -71,6 +110,7 @@ def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[
         is_new_user = bool(getattr(request, "is_new_user", False))
         ctx = getattr(request, "context", None)
         raw_recent = getattr(request, "recent_views", None)
+        req_ts = _parse_iso_seconds(getattr(request, "ts", None))
         if isinstance(ctx, Mapping):
             region = str(ctx.get("region") or "").strip()
             device = str(ctx.get("device") or "").strip()
@@ -80,7 +120,13 @@ def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[
             device = str(getattr(request, "device", "") or "").strip()
             page = str(getattr(request, "page", "") or "").strip()
 
-    return user_id, is_new_user, region, device, page, extract_recent_product_ids(raw_recent)
+    return user_id, is_new_user, region, device, page, _extract_recent_with_ts(raw_recent), req_ts
+
+
+def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[str]]:
+    """Extract (user_id, is_new_user, region, device, page, recent_views) from dict or row."""
+    uid, is_new, reg, dev, pg, rv_ts, _ = _parse_request_fields_full(request)
+    return uid, is_new, reg, dev, pg, [pid for pid, _ in rv_ts]
 
 
 def _build_products(
@@ -109,6 +155,7 @@ def _build_products(
             description=str(row.get("description") or "").strip(),
             is_active=is_active,
             is_new=bool(row.get("is_new_product", False)),
+            initial_price_eur=max(_safe_float(row.get("initial_price_eur"), price), price),
         )
 
     for row in catalog_updates_rows:
@@ -133,6 +180,11 @@ def _build_products(
         else:
             is_active = bool(is_active_flag) and (pid not in out_of_stock_ids)
 
+        init_price = (
+            existing.initial_price_eur
+            if (existing is not None and existing.initial_price_eur > 0.0)
+            else price
+        )
         products[pid] = ProductInfo(
             product_id=pid,
             category=str(row.get("category") or (existing.category if existing else "")).strip(),
@@ -142,6 +194,7 @@ def _build_products(
             description=str(row.get("description") or (existing.description if existing else "")).strip(),
             is_active=is_active,
             is_new=bool(row.get("is_new_product", existing.is_new if existing else True)),
+            initial_price_eur=init_price,
         )
 
     active_ids = frozenset(pid for pid, p in products.items() if p.is_active)
@@ -153,7 +206,7 @@ def _build_contextual_maps(
     context_rows: Iterable[Mapping[str, Any]],
     active_ids: frozenset[str],
     *,
-    prior_strength: float = 15.0,
+    prior_strength: float = 50.0,
     top_k: int = 25,
 ) -> tuple[
     dict[tuple[str, str, str], tuple[tuple[str, float], ...]],
@@ -161,6 +214,7 @@ def _build_contextual_maps(
     dict[tuple[str], tuple[tuple[str, float], ...]],
     dict[str, float],
 ]:
+    """N12: 3-level Hierarchical Empirical Bayes context rates: global -> (page,) -> (reg, dev) -> (reg, dev, page)."""
     cnt_3: dict[tuple[str, str, str], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     cnt_2: dict[tuple[str, str], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     cnt_1: dict[tuple[str], dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -197,32 +251,53 @@ def _build_contextual_maps(
         for pid, b in global_buys.items():
             global_share[pid] = b / tot_global
 
-    def _finalize(
-        bucket_map: dict[Any, dict[str, float]],
-        totals_map: dict[Any, float],
-    ) -> dict[Any, tuple[tuple[str, float], ...]]:
-        out: dict[Any, tuple[tuple[str, float], ...]] = {}
-        for key, item_counts in bucket_map.items():
-            n_bucket = totals_map[key]
-            denom = n_bucket + prior_strength
-            scored: list[tuple[float, str]] = []
-            for pid, cnt in item_counts.items():
-                rate = (cnt + prior_strength * global_share.get(pid, 0.0)) / denom
-                scored.append((rate, pid))
-            scored.sort(reverse=True)
-            top = scored[:top_k]
-            if not top or top[0][0] <= 0.0:
-                continue
-            max_r = top[0][0]
-            out[key] = tuple((pid, r / max_r) for r, pid in top)
-        return out
+    def _compute_eb(
+        counts: Mapping[str, float],
+        n_bucket: float,
+        parent_rates: Mapping[str, float],
+    ) -> tuple[dict[str, float], tuple[tuple[str, float], ...]]:
+        denom = n_bucket + prior_strength
+        if denom <= 0.0:
+            return {}, ()
+        rates: dict[str, float] = {}
+        scored: list[tuple[float, str]] = []
+        keys = set(counts) | set(parent_rates)
+        for pid in keys:
+            r = (counts.get(pid, 0.0) + prior_strength * parent_rates.get(pid, 0.0)) / denom
+            if r > 0.0:
+                rates[pid] = r
+                scored.append((r, pid))
+        scored.sort(reverse=True)
+        top = scored[:top_k]
+        if not top or top[0][0] <= 0.0:
+            return rates, ()
+        max_r = top[0][0]
+        return rates, tuple((pid, r / max_r) for r, pid in top)
 
-    return (
-        _finalize(cnt_3, tot_3),
-        _finalize(cnt_2, tot_2),
-        _finalize(cnt_1, tot_1),
-        global_share,
-    )
+    rate_1: dict[tuple[str], dict[str, float]] = {}
+    ctx_1: dict[tuple[str], tuple[tuple[str, float], ...]] = {}
+    for key, counts in cnt_1.items():
+        r1, ranked = _compute_eb(counts, tot_1[key], global_share)
+        rate_1[key] = r1
+        if ranked:
+            ctx_1[key] = ranked
+
+    rate_2: dict[tuple[str, str], dict[str, float]] = {}
+    ctx_2: dict[tuple[str, str], tuple[tuple[str, float], ...]] = {}
+    for key, counts in cnt_2.items():
+        r2, ranked = _compute_eb(counts, tot_2[key], global_share)
+        rate_2[key] = r2
+        if ranked:
+            ctx_2[key] = ranked
+
+    ctx_3: dict[tuple[str, str, str], tuple[tuple[str, float], ...]] = {}
+    for key, counts in cnt_3.items():
+        parent = rate_2.get((key[0], key[1])) or rate_1.get((key[2],)) or global_share
+        _, ranked = _compute_eb(counts, tot_3[key], parent)
+        if ranked:
+            ctx_3[key] = ranked
+
+    return ctx_3, ctx_2, ctx_1, global_share
 
 
 def build_product_static_table(
@@ -234,10 +309,10 @@ def build_product_static_table(
     bandit: PositionAwareBandit,
     bandit_state: Any,
     ucb_alpha: float,
-) -> dict[str, tuple[str, str, float, float, float, float, float, float]]:
-    """Precompute static per-active-product FastLoop lookup tuples."""
+) -> dict[str, tuple[str, str, float, float, float, float, float, float, float]]:
+    """Precompute static per-active-product FastLoop tuples (including V6 discount_pct)."""
     max_lp = max(max_log_price, 1e-6)
-    table: dict[str, tuple[str, str, float, float, float, float, float, float]] = {}
+    table: dict[str, tuple[str, str, float, float, float, float, float, float, float]] = {}
     for pid in active_ids:
         info = products.get(pid)
         if info is None:
@@ -259,6 +334,7 @@ def build_product_static_table(
             lp_norm,
             exploit_delta,
             ucb_bonus,
+            info.discount_pct,
         )
     return table
 
@@ -266,6 +342,11 @@ def build_product_static_table(
 def _prepare_request_signals(
     snapshot: RecommenderSnapshotV4,
     parsed: tuple[str, bool, str, str, str, list[str]],
+    *,
+    recent_with_ts: Sequence[tuple[str, float | None]] | None = None,
+    req_ts: float | None = None,
+    recency_decay: float = 0.72,
+    half_life_sec: float = 624.0,
 ) -> tuple[
     dict[str, float],
     dict[str, float],
@@ -281,7 +362,7 @@ def _prepare_request_signals(
     str,
     dict[str, float],
 ]:
-    """Compute request-level lookup maps shared identically by training and FastLoop."""
+    """Compute request-level lookup maps shared identically by training and FastLoop (N13)."""
     user_id, is_new_user, region, device, page, recent_views = parsed
 
     seq_scores: dict[str, float] = {}
@@ -289,9 +370,20 @@ def _prepare_request_signals(
     rev_graft_scores: dict[str, float] = {}
     self_view_scores: dict[str, float] = {}
 
-    decay = 0.65
-    for rev_idx, seen_pid in enumerate(reversed(recent_views)):
-        w_rec = decay**rev_idx
+    rv_items: list[tuple[str, float | None]] = (
+        list(recent_with_ts)
+        if recent_with_ts is not None
+        else [(pid, None) for pid in recent_views]
+    )
+    ln2 = 0.6931471805599453
+    hl = max(half_life_sec, 1.0)
+    for rev_idx, (seen_pid, seen_ts) in enumerate(reversed(rv_items)):
+        rank_w = recency_decay**rev_idx
+        if req_ts is not None and seen_ts is not None and req_ts >= seen_ts:
+            dt_sec = req_ts - seen_ts
+            w_rec = rank_w * (0.5 + 0.5 * math.exp(-ln2 * dt_sec / hl))
+        else:
+            w_rec = rank_w
         if seen_pid in snapshot.active_ids and seen_pid not in self_view_scores:
             page_factor = 0.65 if (page == "product" and rev_idx == 0) else 1.0
             self_view_scores[seen_pid] = snapshot.self_cvr.get(seen_pid, 0.02) * w_rec * page_factor
@@ -412,7 +504,7 @@ def _extract_feature_matrix(
         X[idx, 2] = intent_scores.get(pid, 0.0)
 
         if st is not None:
-            sc, br, gpop, ltrend, is_new_f, lp_norm, _, _ = st
+            sc, br, gpop, ltrend, is_new_f, lp_norm, _, _, _ = st
             aff_val = affinity_map.get((sc, br), 0.0)
             if aff_val == 0.0 and affinity_map:
                 aff_val = affinity_map.get((sc, ""), 0.0) * 0.6
@@ -541,7 +633,11 @@ def build_snapshot_v4_from_records(
         if max_c > 0.0:
             transitions[src] = tuple((dst, sc / max_c) for dst, sc in top_combined if sc > 0.0)
 
-    ctx_3, ctx_2, ctx_1, _ = _build_contextual_maps(context_rows, active_ids)
+    ctx_3, ctx_2, ctx_1, _ = _build_contextual_maps(
+        context_rows,
+        active_ids,
+        prior_strength=cfg.ctx_kappa,
+    )
 
     bought_map: dict[str, set[str]] = defaultdict(set)
     price_stats: dict[str, tuple[float, float]] = {}
@@ -640,6 +736,8 @@ def build_snapshot_v4_from_records(
         new_infos,
         top_k_forward=cfg.max_cold_neighbors,
         top_k_reverse=cfg.max_reverse_cold_per_warm,
+        min_reverse_sim=cfg.reverse_min_sim,
+        reverse_same_subcat=cfg.reverse_same_subcat,
     )
 
     fallback_scores: dict[str, float] = {}
@@ -832,13 +930,29 @@ class CalypsoRecommenderV4:
         snapshot: RecommenderSnapshotV4,
         k: int = 10,
     ) -> list[str]:
-        """Slot-Gated scoring: pure precision in WARM top slots, UCB exploration in tail/cold slots."""
-        parsed = _parse_request_fields(request)
-        uid, is_new_user, _, _, _, recent_views = parsed
-        has_session_intent = bool(recent_views)
-        is_cold_session = is_new_user or any(
-            pid in snapshot.new_product_ids for pid in recent_views
+        """Slot-Gated scoring: Stage 2 Especial N6-N13 + segment weights + relative MMR + N9 tie-break."""
+        uid, is_new_user, region, device, page, recent_with_ts, req_ts = _parse_request_fields_full(
+            request
         )
+        recent_views = [pid for pid, _ in recent_with_ts]
+        parsed = (uid, is_new_user, region, device, page, recent_views)
+        has_session_intent = bool(recent_views)
+        has_new_in_session = any(pid in snapshot.new_product_ids for pid in recent_views)
+        is_cold_session = is_new_user or has_new_in_session
+
+        # 4.3 Segment-aware multipliers from Stage 2 Especial
+        if has_new_in_session:
+            seg = "producto_nuevo"
+        elif is_new_user:
+            seg = "nuevo_sesion" if has_session_intent else "nuevo_sin_sesion"
+        else:
+            seg = "conocido_sesion" if has_session_intent else "conocido_sin_sesion"
+
+        seq_scale = 1.06 if seg == "nuevo_sesion" else 1.0
+        intent_scale = 1.15 if seg == "conocido_sin_sesion" else 1.0
+        ctx_scale = 1.25 if seg == "nuevo_sin_sesion" else (1.10 if seg == "nuevo_sesion" else 1.0)
+        pop_scale = 1.15 if seg == "nuevo_sin_sesion" else 1.0
+        cold_scale = 1.25 if seg == "producto_nuevo" else 1.0
 
         profile = None if is_new_user else snapshot.user_profiles.get(uid)
         bought_hist = profile.bought_products if profile is not None else frozenset()
@@ -869,7 +983,14 @@ class CalypsoRecommenderV4:
             anchor_subcat,
             anchor_brand,
             _,
-        ) = _prepare_request_signals(snapshot, parsed)
+        ) = _prepare_request_signals(
+            snapshot,
+            parsed,
+            recent_with_ts=recent_with_ts,
+            req_ts=req_ts,
+            recency_decay=self.config.recency_decay,
+            half_life_sec=self.config.recent_halflife_sec,
+        )
 
         overrides = snapshot.agent_overrides
         ranker: PositionDebiasedRanker = (
@@ -887,6 +1008,7 @@ class CalypsoRecommenderV4:
         max_lp = max(snapshot.max_log_price, 1e-6)
         product_static = snapshot.product_static
         has_aff = bool(affinity_map)
+        w_price_drop = self.config.weight_price_drop
 
         # Compute split (precision_score, explore_score, subcat, brand, is_new, confirmed_cold)
         n_cands = len(candidates)
@@ -914,7 +1036,7 @@ class CalypsoRecommenderV4:
 
             st = product_static.get(pid)
             if st is not None:
-                sc, br, gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b = st
+                sc, br, gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b, disc_pct = st
                 s_aff = 0.0
                 if has_aff:
                     s_aff = affinity_map.get((sc, br), 0.0)
@@ -929,7 +1051,13 @@ class CalypsoRecommenderV4:
 
                 same_sc = bool(anchor_subcat and sc == anchor_subcat)
                 same_br = bool(anchor_brand and br == anchor_brand)
-                bg_score = w5 * s_ctx + w6 * gpop + w7 * ltrend + exploit_d
+                bg_score = (
+                    w5 * ctx_scale * s_ctx
+                    + w6 * pop_scale * gpop
+                    + w7 * ltrend
+                    + exploit_d
+                    + w_price_drop * disc_pct
+                )
                 if (
                     has_session_intent
                     and s_seq == 0.0
@@ -940,15 +1068,15 @@ class CalypsoRecommenderV4:
                     bg_score *= 0.18 if not same_sc else 0.45
 
                 score_p = (
-                    w0 * s_seq
+                    w0 * seq_scale * s_seq
                     + w1 * s_self
-                    + w2 * s_intent
-                    + w3 * s_aff
+                    + w2 * intent_scale * s_intent
+                    + w3 * intent_scale * s_aff
                     + w4 * s_pcompat
                     + bg_score
                     + w8 * is_new_f
-                    + w9 * s_rev
-                    + w10 * s_fwd
+                    + w9 * cold_scale * s_rev
+                    + w10 * cold_scale * s_fwd
                     + w11 * lp_norm
                     + (subcat_bonus_w if same_sc else 0.0)
                     + (brand_bonus_w if same_br else 0.0)
@@ -965,14 +1093,14 @@ class CalypsoRecommenderV4:
                 gpop = snapshot.global_pop_norm.get(pid, 0.0)
                 ltrend = snapshot.live_trend_norm.get(pid, 0.0)
                 score_p = (
-                    w0 * s_seq
+                    w0 * seq_scale * s_seq
                     + w1 * s_self
-                    + w2 * s_intent
-                    + w5 * s_ctx
-                    + w6 * gpop
+                    + w2 * intent_scale * s_intent
+                    + w5 * ctx_scale * s_ctx
+                    + w6 * pop_scale * gpop
                     + w7 * ltrend
-                    + w9 * s_rev
-                    + w10 * s_fwd
+                    + w9 * cold_scale * s_rev
+                    + w10 * cold_scale * s_fwd
                 )
                 prec_scores[idx] = score_p
                 full_scores[idx] = score_p
@@ -988,15 +1116,15 @@ class CalypsoRecommenderV4:
         picked = [False] * n_cands
         subcat_counts: dict[str, int] = defaultdict(int)
         brand_counts: dict[str, int] = defaultdict(int)
-        selected: list[str] = []
+        selected_indices: list[int] = []
 
         cold_gate = 0 if is_cold_session else self.config.cold_explore_start_slot_warm
         max_cold_warm = self.config.max_cold_explore_in_warm
         new_picked_count = 0
 
         target_k = min(k, n_cands)
-        while len(selected) < target_k:
-            slot_pos = len(selected)
+        while len(selected_indices) < target_k:
+            slot_pos = len(selected_indices)
             allow_ucb = is_cold_session or slot_pos >= cold_gate
             allow_new = is_cold_session or (allow_ucb and new_picked_count < max_cold_warm)
             apply_mmr = slot_pos >= mmr_start
@@ -1018,16 +1146,23 @@ class CalypsoRecommenderV4:
                 if apply_mmr:
                     sc = cand_subcats[idx]
                     br = cand_brands[idx]
-                    if sc and subcat_lam > 0.0:
-                        val -= subcat_lam * subcat_counts[sc]
-                    if br and brand_lam > 0.0:
-                        val -= brand_lam * brand_counts[br]
+                    if val > 0.0:
+                        mult = 1.0
+                        if sc and subcat_lam > 0.0:
+                            mult *= max(0.0, 1.0 - subcat_lam * subcat_counts[sc])
+                        if br and brand_lam > 0.0:
+                            mult *= max(0.0, 1.0 - brand_lam * brand_counts[br])
+                        val *= mult
+                    else:
+                        if sc and subcat_lam > 0.0:
+                            val -= subcat_lam * subcat_counts[sc]
+                        if br and brand_lam > 0.0:
+                            val -= brand_lam * brand_counts[br]
                 if val > best_val:
                     best_val = val
                     best_idx = idx
 
             if best_idx < 0:
-                # Fallback if only cold items remain and cap was reached
                 for idx in range(n_cands):
                     if not picked[idx] and full_scores[idx] > best_val:
                         best_val = full_scores[idx]
@@ -1036,7 +1171,7 @@ class CalypsoRecommenderV4:
                     break
 
             picked[best_idx] = True
-            selected.append(candidates[best_idx])
+            selected_indices.append(best_idx)
             if cand_is_new[best_idx]:
                 new_picked_count += 1
             if cand_subcats[best_idx]:
@@ -1044,6 +1179,25 @@ class CalypsoRecommenderV4:
             if cand_brands[best_idx]:
                 brand_counts[cand_brands[best_idx]] += 1
 
+        # N9: Lexicographic revenue tie-break within revenue_eps without breaking slot gating
+        eps = self.config.revenue_eps
+        if eps > 0.0 and len(selected_indices) >= 2:
+            for _ in range(2):
+                for a in range(len(selected_indices) - 1):
+                    ia, ib = selected_indices[a], selected_indices[a + 1]
+                    if cand_is_new[ib] and not is_cold_session and a < cold_gate:
+                        if not (a >= 4 and cand_confirmed_cold[ib]):
+                            continue
+                    sa, sb = prec_scores[ia], prec_scores[ib]
+                    if abs(sa - sb) < eps * max(abs(sa), 1e-9):
+                        pa_info = snapshot.products.get(candidates[ia])
+                        pb_info = snapshot.products.get(candidates[ib])
+                        pa_p = pa_info.price_eur if pa_info is not None else 0.0
+                        pb_p = pb_info.price_eur if pb_info is not None else 0.0
+                        if pb_p > pa_p:
+                            selected_indices[a], selected_indices[a + 1] = ib, ia
+
+        selected = [candidates[i] for i in selected_indices]
         return ensure_valid_submission(
             selected,
             snapshot.active_ids,

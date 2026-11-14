@@ -558,5 +558,19 @@ def main() -> None:
     print(results.round(5))
 
 
+from .eval_e2esp import (  # noqa: E402, F401
+    as_logged,
+    cold_start_test,
+    evaluate_segments,
+    evaluate_synthetic,
+    exposure_rates,
+    load_sessions,
+    popularity_policy,
+    recommender_policy,
+    snapshot_from_history,
+    synthetic_truth,
+)
+
+
 if __name__ == "__main__":
     main()

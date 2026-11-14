@@ -15,6 +15,11 @@ class RawTreeError(RuntimeError):
     """Raised when RawTree returns an unexpected error response."""
 
 
+def sql_str(value: str) -> str:
+    """Safe SQL literal for string values embedded into queries."""
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 class RawTreeClient:
     """Persistent HTTP client with connection pooling and fast-fail guarantees."""
 
@@ -87,3 +92,26 @@ class RawTreeClient:
     def push_scratch(self, records: list[dict[str, Any]], timeout: float = 5.0) -> None:
         """Insert embeddings, cold-start mappings, or telemetry into team_NN.scratch."""
         self.push_table("scratch", records, timeout=timeout, retries=1)
+
+    def query_paged(
+        self,
+        sql_template: str,
+        n_pages: int,
+        timeout: float = 300.0,
+        log_every: int = 1,
+    ) -> list[dict[str, Any]]:
+        """Execute ``sql_template.format(page=i, n_pages=n_pages)`` across shards."""
+        out: list[dict[str, Any]] = []
+        for i in range(n_pages):
+            t0 = time.perf_counter()
+            rows = self.query(sql_template.format(page=i, n_pages=n_pages), timeout=timeout)
+            out.extend(rows)
+            if (i + 1) % log_every == 0:
+                logger.info(
+                    "Page %d/%d: %d rows (%.1fs)",
+                    i + 1,
+                    n_pages,
+                    len(rows),
+                    time.perf_counter() - t0,
+                )
+        return out

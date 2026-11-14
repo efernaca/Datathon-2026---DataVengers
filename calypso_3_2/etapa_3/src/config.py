@@ -1,4 +1,4 @@
-"""Runtime configuration and .env / group_API.env loader for Stage 3 (calypso-2.1)."""
+"""Runtime configuration and .env / group_API.env loader for Stage 3 (calypso-3.2)."""
 from __future__ import annotations
 
 import os
@@ -45,12 +45,12 @@ def load_dotenv_files() -> None:
 
 @dataclass(frozen=True, slots=True)
 class ConfigV3:
-    """Immutable configuration and hyperparameters for calypso-2.1."""
+    """Immutable configuration and hyperparameters for calypso-3.2."""
 
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "calypso-3.1"
+    model_version: str = "calypso-3.2"
 
     # Fast / Slow serving timings
     poll_interval_s: float = 0.20

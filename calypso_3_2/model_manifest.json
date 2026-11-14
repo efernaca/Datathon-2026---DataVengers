@@ -1,7 +1,7 @@
 {
-  "name": "calypso 3.1",
-  "model_version": "calypso-3.1",
-  "folder": "calypso_3_1",
+  "name": "calypso 3.2",
+  "model_version": "calypso-3.2",
+  "folder": "calypso_3_2",
   "entrypoint": "serve.py",
   "monitor": "monitor.py",
   "eval": "eval.py",
@@ -9,5 +9,5 @@
   "train_args": ["--train-only"],
   "heartbeat_file": "cache/heartbeat.json",
   "log_file": "logs/live.log",
-  "description": "Unified 4-Stage Calypso 3.1 (EASE + Lift/UserProfile + IPS Re-Ranker/Bandit/Agent + Slot-Gated DiskCache SLA)"
+  "description": "Unified 4-Stage Calypso 3.2 (EASE + Lift/UserProfile Especial N6-N13 + IPS Re-Ranker/Bandit/Agent + Slot-Gated DiskCache SLA)"
 }
