@@ -6,3 +6,7 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 .venv/
+
+# Etapa 1 versión especial
+etapa_1_version_especial/cache/
+etapa_1_version_especial/logs/

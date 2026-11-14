@@ -6,7 +6,7 @@ Aquest document explica amb detall tècnic **com funciona exactament** el codi i
 
 ## 1. Visió General de l'Arquitectura en Temps Real
 
-El sistema implementat a [serve.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/serve.py) executa **dos bucles independents en paral·lel** dins del mateix procés Python, connectats únicament per un contenidor atòmic en memòria (`StateStore` a [state.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/state.py)).
+El sistema implementat a [serve.py](src/serve.py) executa **dos bucles independents en paral·lel** dins del mateix procés Python, connectats únicament per un contenidor atòmic en memòria (`StateStore` a [state.py](src/state.py)).
 
 ```mermaid
 flowchart TB
@@ -42,7 +42,7 @@ flowchart TB
 ### Per què està dissenyat així?
 * **Cap consulta pesada bloqueja les respostes:** Si `SQL_TRANSITIONS` triga alguns segons sobre els 12 milions d'esdeveniments històrics, el `FastServingLoop` segueix responent en mil·lisegons amb l'últim `RecommenderSnapshot` vàlid.
 * **Immutabilitat (`frozen=True`):** Un `RecommenderSnapshot` no es modifica mai in situ. Quan arriba una actualització ràpida d'estoc (`refresh_fast_signals()`), `with_fast_updates()` construeix un snapshot nou reutilitzant els diccionaris històrics pesats (sense copiar-los) i només recalcula `active_ids` i `global_ranked`.
-* **Connexió HTTP reutilitzable ([rawtree_client.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/rawtree_client.py)):** `RawTreeClient` manté una `requests.Session` amb `HTTPAdapter(pool_connections=16, pool_maxsize=16, max_retries=0)` per estalviar el *handshake* TLS en cada petició i garantir *timeouts* estrictes (`1.2 s` per lectura en el bucle ràpid, `1.4 s` per enviament).
+* **Connexió HTTP reutilitzable ([rawtree_client.py](src/rawtree_client.py)):** `RawTreeClient` manté una `requests.Session` amb `HTTPAdapter(pool_connections=16, pool_maxsize=16, max_retries=0)` per estalviar el *handshake* TLS en cada petició i garantir *timeouts* estrictes (`1.2 s` per lectura en el bucle ràpid, `1.4 s` per enviament).
 * **Tolerància a taules buides (`query_safe`):** Quan `shop.requests`, `shop.events` o `shop.catalog_updates` encara són buides, RawTree retorna `Unknown expression identifier`. `query_safe()` captura aquest error esperat i retorna `[]` sense fer caure el servei.
 * **Control de memòria (`_seen_queue` + `_seen_set`):** `FastServingLoop` guarda només les últimes `20.000` `request_id` contestades mitjançant un `collections.deque(maxlen=20000)` combinat amb un `set`, evitant que la RAM creixi indefinidament durant tot el cap de setmana.
 
@@ -50,7 +50,7 @@ flowchart TB
 
 ## 2. Quines Dades Carrega i Com Construeix l'Estat (`build_snapshot_from_records`)
 
-Quan s'executa `refresh_full()` (o a l'inici del servei, o en l'avaluador offline), [recommender.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/recommender.py) consolida en memòria les següents estructures a partir de les consultes de [serve.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/serve.py) i [feature_queries.sql](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/sql/feature_queries.sql):
+Quan s'executa `refresh_full()` (o a l'inici del servei, o en l'avaluador offline), [recommender.py](src/recommender.py) consolida en memòria les següents estructures a partir de les consultes de [serve.py](src/serve.py) i [feature_queries.sql](sql/feature_queries.sql):
 
 1. **Catàleg consolidat (`products`, `active_ids`, `out_of_stock`):**
    * Fusiona `shop.catalog` amb l'últim estat de `shop.catalog_updates` (`_merge_catalog_rows`), preservant el `initial_price_eur` original per poder calcular el descompte relatiu (`ProductInfo.discount_pct` = $\max(0, \frac{p_{\text{inicial}} - p_{\text{actual}}}{p_{\text{inicial}}})$).
@@ -67,7 +67,7 @@ Quan s'executa `refresh_full()` (o a l'inici del servei, o en l'avaluador offlin
    * Es conserven els 30 millors destins per producte origen, normalitzats a $(0, 1]$.
 5. **Memòria anti-repetició (`user_bought`):**
    * Conjunt `frozenset` dels `product_id` que cada `user_id` ja ha comprat a `shop.history_events`.
-6. **Índex de Cold Start (`ColdStartIndex` a [cold_start.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/cold_start.py)):**
+6. **Índex de Cold Start (`ColdStartIndex` a [cold_start.py](src/cold_start.py)):**
    * Entrena un `TfidfVectorizer` (unigrames i bigrames, `max_features=4096`, `sublinear_tf=True`) sobre el text concatenat `category + subcategory + brand + description` de tot el catàleg.
    * Per a qualsevol producte marcat `is_new` o amb menys de 3 regles a `transitions`, busca els `max_cold_neighbors = 8` productes càlids (*warm*) més propers combinant:
      $$\text{sim}(q, w) = \cos(\text{TF-IDF}_q, \text{TF-IDF}_w) + 0.35\,\mathbb{I}[\text{subcat}_q = \text{subcat}_w] + 0.15\,\mathbb{I}[\text{cat}_q = \text{cat}_w] + 0.10\,\mathbb{I}[\text{brand}_q = \text{brand}_w] + 0.15\,e^{-|\ln(1+p_q) - \ln(1+p_w)|}$$
@@ -78,7 +78,7 @@ Quan s'executa `refresh_full()` (o a l'inici del servei, o en l'avaluador offlin
 
 ## 3. Com Decideix els 10 Productes (`Stage1Recommender.recommend`)
 
-Per a cada petició entrant (`request`), el mètode `recommend()` de [recommender.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/recommender.py) executa els 5 passos següents amb els pesos definits a [config.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/config.py):
+Per a cada petició entrant (`request`), el mètode `recommend()` de [recommender.py](src/recommender.py) executa els 5 passos següents amb els pesos definits a [config.py](src/config.py):
 
 ### Pas 1 · Extracció de context i filtre de compres prèvies
 * Extreu `user_id`, `is_new_user`, `context` (`region`, `device`, `page`) i la llista `recent_views`.
@@ -104,7 +104,7 @@ Per a cada producte vist `v_pid` a l'índex invers `idx = 0, 1, ...` amb pes de 
 
 ### Pas 5 · Ordenació i Barrera Determinista (`guardrails.py`)
 * Ordena tots els candidats per `(-score, -product_pop_score, product_id)`.
-* Passa la llista per `ensure_valid_submission()` de [guardrails.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/guardrails.py), que:
+* Passa la llista per `ensure_valid_submission()` de [guardrails.py](src/guardrails.py), que:
   1. Filtra duplicats, inactius i `already_bought`.
   2. Completa fins a **10 productes** amb `global_ranked` si en falten.
   3. Només en el cas extrem que l'usuari hagués comprat gairebé tot el catàleg actiu, relaxa `exclude_ids` per evitar retornar menys de 10 ítems.
@@ -112,7 +112,7 @@ Per a cada producte vist `v_pid` a l'índex invers `idx = 0, 1, ...` amb pes de 
 
 ---
 
-## 4. Avaluació Offline i Simulador Sintètic ([eval.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon 2026 - DataVengers/etapa_1/src/eval.py))
+## 4. Avaluació Offline i Simulador Sintètic ([eval.py](src/eval.py))
 
 Com que encara no tenim connexió en viu amb RawTree, `eval.py` implementa tant el motor mètric real com un **simulador sintètic** (`generate_synthetic_dataset`) amb el mateix esquema que RawTree (`catalog`, `history_events`, `history_sessions` amb `propensity` i `revenue_eur`, plus 40 `new_product` i compradors nous).
 
@@ -146,16 +146,16 @@ python etapa_1/src/serve.py
 
 | Fitxer | Funció principal |
 |---|---|
-| [01_PLANIFICACIO_ETAPA_1.md](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/01_PLANIFICACIO_ETAPA_1.md) | Especificació tècnica, SLA i arquitectura de l'Etapa 1 |
-| [02_PROPOSTES_MILLORA_FUTURES.md](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/02_PROPOSTES_MILLORA_FUTURES.md) | Full de ruta d'evolucions per Etapes 2 i 3 |
-| [03_FUNCIONAMENT_ACTUAL.md](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/03_FUNCIONAMENT_ACTUAL.md) | Aquesta documentació del codi implementat |
-| [eda_queries.sql](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/sql/eda_queries.sql) / [feature_queries.sql](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/sql/feature_queries.sql) / [monitoring.sql](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/sql/monitoring.sql) | Consultes SQL d'anàlisi, extracció i monitorització a RawTree |
-| [config.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/config.py) | Càrrega de `.env`, *timeouts* i pesos del model |
-| [rawtree_client.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/rawtree_client.py) | Client HTTP persistent i gestió d'insercions |
-| [state.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/state.py) | Snapshot immutable i `StateStore` thread-safe |
-| [cold_start.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/cold_start.py) | Similitud TF-IDF + atributs per a `new_product` |
-| [guardrails.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/guardrails.py) | Validació estricta de 10 IDs actius i únics |
-| [recommender.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/recommender.py) | Scorer híbrid `Stage1Recommender` |
-| [eval.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/eval.py) | Avaluador estratificat i simulador sintètic |
-| [serve.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/src/serve.py) | Execució *Fast/Slow Loop* i `--dry-run` |
-| [test_stage1.py](file:///c:/Users/%C3%88ric%20Universitat/OneDrive%20-%20Universitat%20de%20Barcelona/Documentos/GitHub/Datathon%202026%20-%20DataVengers/etapa_1/tests/test_stage1.py) | Proves unitàries i d'integració |
+| [01_PLANIFICACIO_ETAPA_1.md](01_PLANIFICACIO_ETAPA_1.md) | Especificació tècnica, SLA i arquitectura de l'Etapa 1 |
+| [02_PROPOSTES_MILLORA_FUTURES.md](02_PROPOSTES_MILLORA_FUTURES.md) | Full de ruta d'evolucions per Etapes 2 i 3 |
+| [03_FUNCIONAMENT_ACTUAL.md](03_FUNCIONAMENT_ACTUAL.md) | Aquesta documentació del codi implementat |
+| [eda_queries.sql](sql/eda_queries.sql) / [feature_queries.sql](sql/feature_queries.sql) / [monitoring.sql](sql/monitoring.sql) | Consultes SQL d'anàlisi, extracció i monitorització a RawTree |
+| [config.py](src/config.py) | Càrrega de `.env`, *timeouts* i pesos del model |
+| [rawtree_client.py](src/rawtree_client.py) | Client HTTP persistent i gestió d'insercions |
+| [state.py](src/state.py) | Snapshot immutable i `StateStore` thread-safe |
+| [cold_start.py](src/cold_start.py) | Similitud TF-IDF + atributs per a `new_product` |
+| [guardrails.py](src/guardrails.py) | Validació estricta de 10 IDs actius i únics |
+| [recommender.py](src/recommender.py) | Scorer híbrid `Stage1Recommender` |
+| [eval.py](src/eval.py) | Avaluador estratificat i simulador sintètic |
+| [serve.py](src/serve.py) | Execució *Fast/Slow Loop* i `--dry-run` |
+| [test_stage1.py](tests/test_stage1.py) | Proves unitàries i d'integració |
