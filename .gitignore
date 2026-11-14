@@ -15,3 +15,6 @@ etapa_1_version_especial/logs/
 # Etapa 4 cache i logs en temps d'execució
 etapa_4/cache/
 etapa_4/logs/
+# Etapa 2 versión especial
+etapa_2_version_especial/cache/
+etapa_2_version_especial/logs/
