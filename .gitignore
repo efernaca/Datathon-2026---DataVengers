@@ -30,3 +30,8 @@ calypso_4_1/cache/
 calypso_4_1/logs/
 odyseus/cache/
 odyseus/logs/
+
+# Odyseus-ML: datos descargados y datasets (pesados, se regeneran)
+odyseus_2_0/ml_data/
+odyseus_2_0/cache/
+odyseus_2_0/logs/
