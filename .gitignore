@@ -1,3 +1,13 @@
+# Ignora tots els fitxers i carpetes solts de l'arrel excepte els 4 directoris i fitxers base del repo
+/*
+!/.gitattributes
+!/.gitignore
+!/README.md
+!/calypso_2_1/
+!/calypso_4_1_e/
+!/calypso_6_2_b/
+!/datathon-fme-2026-main/
+
 # Entorn i credencials
 .env
 *.env
@@ -21,31 +31,3 @@ calypso_6_2_b/cache/
 calypso_6_2_b/logs/
 etapa_*/cache/
 etapa_*/logs/
-
-# Carpetes excloses del repositori net
-# (Nomes es conserven: calypso_2_1/, calypso_4_1_e/, calypso_6_2_b/ i datathon-fme-2026-main/)
-_to_delete/
-documentacio_IA/
-gestor_models/
-Informes/
-material_obsolet/
-offline_eval_cache/
-Presentacion/
-scratch/
-
-# Models intermedis / experimentals exclosos
-calypso_3_1/
-calypso_3_1b/
-calypso_3_2/
-calypso_4_1/
-calypso_4_1_f/
-calypso_4_2/
-calypso_5_1/
-calypso_6_1/
-calypso_6_2/
-calypso_6_2_a/
-calypso_6_2_e/
-calypso_6_2_f/
-odyseus/
-odyseus_2_0/
-odyseus_3_0/
