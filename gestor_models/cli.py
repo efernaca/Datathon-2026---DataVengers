@@ -113,6 +113,26 @@ def _cmd_status(registry: dict[str, ModelSpec], window_minutes: int) -> int:
                 f"   - {r['time']} | {r['request_id']} | model={r['model_version']} | "
                 f"{r['served_by']} | {r['latency_ms']:.0f}ms | {res}"
             )
+
+    local_mvs = {p["model_version"] for p in serves}
+    ext_rows = [
+        row["model_version"]
+        for row in (telemetry.get("models_summary") or [])
+        if row["model_version"] != "fallback" and row["model_version"] not in local_mvs
+    ]
+    colliding = telemetry.get("collision_request_ids") or []
+    if ext_rows:
+        print("\n[ALERTA CONFLICTE EXTERN]")
+        print(
+            f"   Hi ha models EXTERNS enviant respostes amb el mateix TEAM_ID des d'un ALTRE PC/servidor: "
+            f"{', '.join(ext_rows)}"
+        )
+        if colliding:
+            print(
+                f"   Col.lisions directes detectades (mateix request_id respost per dos models alhora): "
+                f"{', '.join(colliding[:5])}"
+            )
+        print("   Accio requerida: atura aquests processos a la maquina externa on corren o rota la RAWTREE_API_KEY.")
     return 0
 
 

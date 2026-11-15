@@ -192,7 +192,45 @@
     }
   }
 
-  function renderRequests(reqs) {
+  function renderExternalConflict(data) {
+    const banner = el("ext-conflict-banner");
+    if (!banner) return;
+    const serves = (data.processes || []).filter((p) => p.role === "serve");
+    const localMvs = new Set(serves.map((p) => p.model_version));
+    const telemetry = data.telemetry || {};
+    const summary = telemetry.models_summary || [];
+    const extModels = summary.filter(
+      (s) => s.model_version && s.model_version !== "fallback" && !localMvs.has(s.model_version)
+    );
+    if (!extModels.length) {
+      banner.classList.add("hidden");
+      return;
+    }
+
+    const reqs = telemetry.recent_requests || [];
+    const byReq = new Map();
+    for (const r of reqs) {
+      if (!r.request_id || !r.model_version || r.model_version === "fallback") continue;
+      if (!byReq.has(r.request_id)) byReq.set(r.request_id, new Set());
+      byReq.get(r.request_id).add(r.model_version);
+    }
+    const collisions = Array.from(byReq.entries())
+      .filter(([, mvs]) => mvs.size > 1)
+      .map(([rid]) => rid);
+
+    const extDesc = extModels.map((m) => `${m.model_version} (${m.reqs} reqs)`).join(", ");
+    const localDesc = serves.length
+      ? serves.map((p) => `${p.folder} [${p.model_version}] PID ${p.pid}`).join(", ")
+      : "cap procés local";
+    const collTxt = collisions.length
+      ? ` Col·lisió directa en request_id idèntics (${collisions.slice(0, 3).join(", ")}).`
+      : "";
+    el("ext-conflict-msg").textContent =
+      `Aquest ordinador només executa: ${localDesc}. Els models EXTERNS (${extDesc}) provenen d'un ALTRE ordinador o servidor que utilitza el mateix TEAM_ID i RAWTREE_API_KEY.${collTxt} No es poden aturar des d'aquest PC: cal aturar-los a la màquina externa o canviar la clau API.`;
+    banner.classList.remove("hidden");
+  }
+
+  function renderRequests(reqs, localMvs) {
     const filterSel = el("req-model-filter");
     const versions = Array.from(new Set(reqs.map((r) => r.model_version))).sort();
     const curVal = filterSel.value;
@@ -224,11 +262,15 @@
           outcome = `<span class="pill pill-warn">CLIC (${esc(r.clicked)})</span>`;
         }
         const itemsTxt = (r.items || []).slice(0, 5).join(", ") + ((r.items || []).length > 5 ? ", ..." : "");
+        const isExt = r.model_version && r.model_version !== "fallback" && localMvs && !localMvs.has(r.model_version);
+        const mvBadge = isExt
+          ? `<span class="pill pill-model">${esc(r.model_version)}</span> <span class="pill pill-bad">EXTERN</span>`
+          : `<span class="pill pill-model">${esc(r.model_version)}</span>`;
         return `
           <tr>
             <td class="mono">${esc(r.time)}</td>
             <td class="mono">${esc(r.request_id)}</td>
-            <td><span class="pill pill-model">${esc(r.model_version)}</span></td>
+            <td>${mvBadge}</td>
             <td>${srcPill}</td>
             <td class="${latClass}">${esc(r.latency_ms)} ms</td>
             <td>${outcome}</td>
@@ -239,7 +281,11 @@
       .join("");
   }
 
-  function renderTimelineAndSummary(telemetry) {
+  function renderTimelineAndSummary(telemetry, localMvs) {
+    const extBadge = (mv) =>
+      mv && mv !== "fallback" && localMvs && !localMvs.has(mv)
+        ? ` <span class="pill pill-bad">EXTERN</span>`
+        : "";
     const tlBody = el("timeline-tbody");
     const timeline = telemetry.timeline || [];
     tlBody.innerHTML = timeline.length
@@ -248,7 +294,7 @@
             (row) => `
         <tr>
           <td class="mono">${esc(row.minute)}</td>
-          <td><span class="pill pill-model">${esc(row.model_version)}</span></td>
+          <td><span class="pill pill-model">${esc(row.model_version)}</span>${extBadge(row.model_version)}</td>
           <td>${esc(row.reqs)}</td>
           <td>${esc(row.on_time_pct)}%</td>
           <td>${esc(row.avg_ms)} ms</td>
@@ -265,7 +311,7 @@
           .map(
             (s) => `
         <tr>
-          <td><span class="pill pill-model">${esc(s.model_version)}</span></td>
+          <td><span class="pill pill-model">${esc(s.model_version)}</span>${extBadge(s.model_version)}</td>
           <td>${esc(s.reqs)} (${esc(s.traffic_pct)}%)</td>
           <td>${esc(s.on_time_pct)}%</td>
           <td class="mono">${esc(s.p50_ms)} / ${esc(s.p95_ms)} ms</td>
@@ -316,12 +362,19 @@
       el("conn-dot").classList.remove("offline");
       el("last-sync").textContent = `Actualitzat ${new Date().toLocaleTimeString("ca-ES")}`;
 
+      const localMvs = new Set(
+        (data.processes || [])
+          .filter((p) => p.role === "serve")
+          .map((p) => p.model_version)
+          .filter(Boolean)
+      );
       renderOperation(data.operation);
+      renderExternalConflict(data);
       renderActiveModel(data);
       renderKPIs(data.telemetry || {});
       renderModels(data.models || []);
-      renderRequests((data.telemetry || {}).recent_requests || []);
-      renderTimelineAndSummary(data.telemetry || {});
+      renderRequests((data.telemetry || {}).recent_requests || [], localMvs);
+      renderTimelineAndSummary(data.telemetry || {}, localMvs);
       renderTransitionsAndLogs(data);
     } catch (err) {
       el("conn-dot").classList.add("offline");

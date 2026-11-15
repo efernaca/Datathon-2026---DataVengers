@@ -1,10 +1,10 @@
 {
-  "state": "self_check",
-  "action": "switch",
+  "state": "completed",
+  "action": "train_and_activate",
   "target_folder": "calypso_6_2_b",
   "target_name": "calypso 6.2b",
-  "progress": 15,
-  "message": "Verificant 'calypso_6_2_b' (--self-check) mentre l'actual segueix servint...",
-  "started_at": 1794722057.364024,
-  "updated_at": 1794722060.1031923
+  "progress": 100,
+  "message": "Model 'calypso_6_2_b' (calypso-6.2b) actiu amb PID 26124 en 195.1s (Heartbeat llest (PID 26124, snapshot v1)). Aturats: cap.",
+  "started_at": 1794727673.7264528,
+  "updated_at": 1794727868.8728685
 }

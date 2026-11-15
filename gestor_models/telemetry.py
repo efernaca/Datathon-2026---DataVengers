@@ -225,6 +225,15 @@ LIMIT 90
     total_rev = sum(max(safe_float(r.get("revenue_eur"), 0.0), 0.0) for r in window_rows)
     p50_all = all_lats[int(0.50 * (len(all_lats) - 1))] if all_lats else 0.0
 
+    by_req: dict[str, set[str]] = defaultdict(set)
+    for req_item in recent_requests:
+        mv_item = str(req_item.get("model_version") or "")
+        rid_item = str(req_item.get("request_id") or "")
+        if rid_item and mv_item and mv_item != "fallback":
+            by_req[rid_item].add(mv_item)
+    colliding_rids = sorted(rid for rid, mvs in by_req.items() if len(mvs) > 1)
+    colliding_versions = sorted({mv for rid in colliding_rids for mv in by_req[rid]})
+
     result = {
         "error": err,
         "fetched_at": now,
@@ -232,6 +241,8 @@ LIMIT 90
         "models_summary": models_summary,
         "recent_requests": recent_requests,
         "timeline": timeline_out,
+        "collision_request_ids": colliding_rids,
+        "colliding_versions": colliding_versions,
         "totals": {
             "reqs": total_reqs,
             "req_per_min": round(total_reqs / max(window_minutes, 1), 1),

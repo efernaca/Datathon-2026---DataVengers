@@ -429,17 +429,28 @@ def _wait_for_readiness(
     return False, f"Timeout de {timeout_s:.0f}s esperant que '{spec.folder}' quedes llest."
 
 
-def _cutover_old_processes(running: list[RunningProcess], keep_pid: int) -> list[int]:
+def _cutover_old_processes(
+    registry: dict[str, ModelSpec],
+    keep_pid: int,
+    initial_running: list[RunningProcess] | None = None,
+) -> list[int]:
     """Stop all prior watchdogs, trainers, and serve processes cleanly after cutover."""
     stopped: list[int] = []
-    ordered = sorted(
-        (p for p in running if p.pid != keep_pid),
-        key=lambda p: 0 if p.role == "watchdog" else (1 if p.role == "trainer" else 2),
-    )
-    for proc in ordered:
-        wait_s = 3.0 if proc.role != "serve" else 5.0
-        if terminate_pid(proc.pid, wait_s=wait_s):
-            stopped.append(proc.pid)
+    seen_stopped: set[int] = set()
+    for pass_idx in range(2):
+        running = initial_running if (pass_idx == 0 and initial_running is not None) else find_running_processes(registry)
+        ordered = sorted(
+            (p for p in running if p.pid != keep_pid and p.pid not in seen_stopped),
+            key=lambda p: 0 if p.role == "watchdog" else (1 if p.role == "trainer" else 2),
+        )
+        if not ordered:
+            break
+        for proc in ordered:
+            wait_s = 3.0 if proc.role != "serve" else 5.0
+            if terminate_pid(proc.pid, wait_s=wait_s):
+                stopped.append(proc.pid)
+                seen_stopped.add(proc.pid)
+        time.sleep(0.25)
     return stopped
 
 
@@ -467,7 +478,13 @@ def execute_transition(
     from_folders = sorted({p.folder for p in old_serves if p.folder})
 
     try:
-        if not train_first and not force and len(old_serves) == 1 and old_serves[0].folder == spec.folder:
+        if (
+            not train_first
+            and not force
+            and len(old_serves) == 1
+            and old_serves[0].folder == spec.folder
+            and len(running_before) == 1
+        ):
             record_active_state(spec, old_serves[0].pid)
             msg = (
                 f"'{spec.folder}' ({spec.model_version}) ja es l'unic model actiu "
@@ -566,7 +583,7 @@ def execute_transition(
             started_at=t0,
         )
         record_active_state(spec, new_pid)
-        stopped_pids = _cutover_old_processes(find_running_processes(registry), keep_pid=new_pid)
+        stopped_pids = _cutover_old_processes(registry, keep_pid=new_pid)
         elapsed_s = round(time.time() - t0, 1)
 
         done_msg = (

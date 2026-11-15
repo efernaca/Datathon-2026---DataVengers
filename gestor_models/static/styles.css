@@ -116,6 +116,12 @@ select {
 }
 .op-banner.failed { background: #450a0a; border-color: #dc2626; }
 .op-banner.completed { background: #052e16; border-color: #16a34a; }
+.conflict-banner {
+  background: #450a0a;
+  border: 1px solid #ef4444;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
 .op-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
 .progress-track { height: 8px; background: rgba(255, 255, 255, 0.12); border-radius: 999px; overflow: hidden; }
 .progress-bar { height: 100%; background: var(--accent); transition: width 0.35s ease; }
