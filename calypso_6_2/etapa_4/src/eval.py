@@ -638,7 +638,7 @@ def generate_synthetic_dataset_v4(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Stage 4 Offline 5-Way Benchmark (Calypso 6.1)")
+    parser = argparse.ArgumentParser(description="Stage 4 Offline 5-Way Benchmark (Calypso 6.2)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--out-csv", type=str, default="")
     parser.add_argument("--preset", type=str, default="", help="Evaluate a specific WeightsProfile preset")

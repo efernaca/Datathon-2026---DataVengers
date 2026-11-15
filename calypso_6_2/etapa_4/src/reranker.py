@@ -1,4 +1,4 @@
-"""Vectorized 40-feature Hybrid Position-Debiased (IPS + Non-Linear Distilled MLP) Ranker for Calypso 6.1."""
+"""Vectorized 50-feature Hybrid Position-Debiased (IPS + Weighted-Distilled MLP) Ranker for Calypso 6.2."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
@@ -59,6 +59,17 @@ FEATURE_NAMES: tuple[str, ...] = (
     "ease_x_price_compat",
     "cart_x_self_cvr",
     "cold_sim_x_pop",
+    # 40..49: Calypso 6.2 temporal views, within-subcat pop, subcat price & graph interactions
+    "rv_repeat_count_norm",
+    "rv_temporal_recency",
+    "subcat_pop_rank_score",
+    "cat_pop_rank_score",
+    "price_rel_subcat_compat",
+    "is_viewed_cart_combo",
+    "ease_x_same_subcat",
+    "hop2_x_same_subcat",
+    "svd_sess_x_subcat",
+    "ctx_x_no_views",
 )
 
 NUM_FEATURES = len(FEATURE_NAMES)
@@ -72,43 +83,54 @@ DEFAULT_PRIOR_WEIGHTS = np.array(
         0.42,   # user_affinity
         0.22,   # price_compat
         0.36,   # ctx_bayes_score
-        0.72,   # global_pop_norm
+        0.64,   # global_pop_norm
         0.3585, # live_trend_norm
         0.03,   # is_new_product
         0.38,   # reverse_graft_score
         0.52,   # forward_cold_score
         0.00,   # log_price_norm
-        0.1856, # same_top_subcat
+        0.21,   # same_top_subcat
         0.1101, # same_top_brand
         # 14..20
-        0.12,   # ease_score
-        0.00,   # hop2_seq_score
-        0.00,   # covisit_score
-        0.12,   # svd_session_sim
-        0.10,   # svd_user_sim
-        0.20,   # is_last_viewed
+        0.16,   # ease_score
+        0.08,   # hop2_seq_score
+        0.06,   # covisit_score
+        0.14,   # svd_session_sim
+        0.11,   # svd_user_sim
+        0.22,   # is_last_viewed
         0.30,   # view_recency_max
         # 21..28
         1.30,   # in_active_cart_decay
         0.42,   # in_forgotten_cart_decay
         0.35,   # recurrent_log_norm
         0.16,   # discount_ratio
-        0.00,   # rv_subcat_match_frac
-        0.00,   # rv_brand_match_frac
-        0.00,   # price_ratio_to_rv_mean
-        0.00,   # same_top_cat
+        0.08,   # rv_subcat_match_frac
+        0.04,   # rv_brand_match_frac
+        0.06,   # price_ratio_to_rv_mean
+        0.05,   # same_top_cat
         # 29..39
         0.00,   # is_page_product
         0.00,   # is_page_category
         0.00,   # is_page_home
-        0.00,   # page_prod_x_subcat
-        0.00,   # page_prod_x_seq
-        0.00,   # page_cat_x_pop
-        0.00,   # page_home_x_svd
+        0.10,   # page_prod_x_subcat
+        0.12,   # page_prod_x_seq
+        0.06,   # page_cat_x_pop
+        0.10,   # page_home_x_svd
         0.16,   # seq_x_self_cvr
-        0.00,   # ease_x_price_compat
+        0.04,   # ease_x_price_compat
         0.20,   # cart_x_self_cvr
-        0.00,   # cold_sim_x_pop
+        0.06,   # cold_sim_x_pop
+        # 40..49
+        0.32,   # rv_repeat_count_norm
+        0.24,   # rv_temporal_recency
+        0.28,   # subcat_pop_rank_score
+        0.08,   # cat_pop_rank_score
+        0.12,   # price_rel_subcat_compat
+        0.30,   # is_viewed_cart_combo
+        0.18,   # ease_x_same_subcat
+        0.10,   # hop2_x_same_subcat
+        0.14,   # svd_sess_x_subcat
+        0.22,   # ctx_x_no_views
     ],
     dtype=np.float64,
 )
@@ -119,6 +141,7 @@ _MIN_PRIOR_RATIO = np.array(
         0.35, 0.25, 0.25, 0.30, 0.25, 0.00, 0.20,
         0.40, 0.25, 0.25, 0.10, 0.20, 0.00, 0.20, 0.10,
         0.00, 0.00, 0.00, 0.20, 0.20, 0.20, 0.20, 0.20, 0.15, 0.20, 0.15,
+        0.25, 0.20, 0.25, 0.10, 0.15, 0.20, 0.20, 0.15, 0.15, 0.20,
     ],
     dtype=np.float64,
 )
@@ -309,41 +332,77 @@ class PositionDebiasedRanker:
         lin_raw = X64 @ self.effective_weights
         lin_mu = float(np.mean(lin_raw))
         lin_sd = max(float(np.std(lin_raw)), 1e-4)
-        lin_p = 1.0 / (1.0 + np.exp(-np.clip((lin_raw - lin_mu) / lin_sd, -8.0, 8.0)))
 
-        # Teacher HistGradientBoosting learns complex interactions & page/cart thresholds
-        use_early = int(np.sum(y_int > 0)) >= 60 and X_std.shape[0] >= 500
+        # Calibrate 1D linear log-odds against IPS-weighted target so teacher learns true delta
+        try:
+            cal = LogisticRegression(C=2.0, solver="lbfgs", max_iter=200, random_state=42)
+            cal.fit(((lin_raw - lin_mu) / lin_sd)[:, None], y_int, sample_weight=sw)
+            lin_logit = (cal.coef_[0, 0] * ((lin_raw - lin_mu) / lin_sd) + cal.intercept_[0]).astype(np.float64)
+        except Exception:
+            lin_logit = np.clip((lin_raw - lin_mu) / lin_sd, -6.0, 6.0)
+        lin_p = 1.0 / (1.0 + np.exp(-np.clip(lin_logit, -8.0, 8.0)))
+
+        # Teacher HistGradientBoosting sized adaptively to real positive count
+        n_pos = int(np.sum(y_int > 0))
+        min_leaf = max(8, min(28, n_pos // 4)) if n_pos > 0 else 20
+        use_early = n_pos >= 60 and X_std.shape[0] >= 500
         teacher = HistGradientBoostingClassifier(
             max_depth=4,
-            max_iter=120 if use_early else 60,
-            learning_rate=0.06,
-            min_samples_leaf=40 if use_early else 20,
-            l2_regularization=3.0,
+            max_iter=150 if use_early else 80,
+            learning_rate=0.05,
+            min_samples_leaf=min_leaf,
+            l2_regularization=2.5,
             early_stopping=use_early,
             validation_fraction=0.12 if use_early else 0.1,
-            n_iter_no_change=12,
+            n_iter_no_change=14,
             random_state=42,
         )
         teacher.fit(X_std, y_int, sample_weight=sw)
         t_prob = np.clip(teacher.predict_proba(X_std)[:, 1], 1e-4, 1.0 - 1e-4)
         t_logit = np.log(t_prob / (1.0 - t_prob))
-        # Center residual around zero so non-linear head learns pure delta over linear ranker
-        res_target = (0.72 * t_logit + 0.28 * ((y_int.astype(np.float64) - lin_p) * 3.0))
-        res_target = np.clip(res_target - float(np.mean(res_target)), -4.0, 4.0)
+
+        # True centered residual over linear log-odds + direct IPS margin
+        raw_res = (t_logit - lin_logit) * 0.80 + 0.20 * ((y_int.astype(np.float64) - lin_p) * 3.0)
+        res_target = np.clip(raw_res - float(np.mean(raw_res)), -4.5, 4.5)
+
+        # IPS-weighted balanced sampling so MLPRegressor respects purchase weights despite no sample_weight arg
+        pos_idx = np.flatnonzero(y_int > 0)
+        neg_idx = np.flatnonzero(y_int == 0)
+        if len(pos_idx) >= 12 and len(neg_idx) >= 24:
+            rng = np.random.default_rng(42)
+            # Replicate positives according to normalized IPS weights up to ~1200 positive draws
+            pos_w = sw[pos_idx]
+            pos_probs = pos_w / max(float(pos_w.sum()), 1e-9)
+            n_pos_draw = min(max(len(pos_idx) * 3, 256), 1600)
+            draw_pos = rng.choice(pos_idx, size=n_pos_draw, replace=True, p=pos_probs)
+
+            # Negatives weighted by sw plus modest uniform floor for coverage
+            neg_w = sw[neg_idx] + 0.05 * float(np.mean(sw[neg_idx]))
+            neg_probs = neg_w / max(float(neg_w.sum()), 1e-9)
+            n_neg_draw = min(len(neg_idx), max(n_pos_draw * 5, 2500))
+            draw_neg = rng.choice(neg_idx, size=n_neg_draw, replace=(n_neg_draw > len(neg_idx)), p=neg_probs)
+
+            distill_idx = np.concatenate([draw_pos, draw_neg])
+            rng.shuffle(distill_idx)
+            X_mlp = X_std[distill_idx]
+            y_mlp = res_target[distill_idx]
+        else:
+            X_mlp = X_std
+            y_mlp = res_target
 
         student = MLPRegressor(
-            hidden_layer_sizes=(48, 24),
+            hidden_layer_sizes=(64, 32),
             activation="tanh",
             alpha=float(nonlin_l2_alpha),
-            batch_size=min(512, max(64, len(y_int) // 20)),
+            batch_size=min(512, max(64, len(y_mlp) // 16)),
             learning_rate_init=0.0025,
-            max_iter=140,
-            early_stopping=True,
+            max_iter=180,
+            early_stopping=len(y_mlp) >= 250,
             validation_fraction=0.10,
-            n_iter_no_change=10,
+            n_iter_no_change=12,
             random_state=42,
         )
-        student.fit(X_std, res_target)
+        student.fit(X_mlp, y_mlp)
 
         self.nl_mean = x_mean.astype(np.float32)
         self.nl_inv_std = (1.0 / x_scale).astype(np.float32)
@@ -358,10 +417,10 @@ class PositionDebiasedRanker:
         nl_mu = float(np.mean(nl_pred))
         nl_sd = max(float(np.std(nl_pred)), 1e-4)
         self.nl_offset = nl_mu
-        # Match scale cleanly to linear score dispersion
-        self.nl_scale = (0.55 * lin_sd) / nl_sd
-        nl_ramp = min(1.0, max(0.0, (len(y_int) - 500) / 8000.0))
-        self.nl_blend_alpha = float(nonlin_blend_alpha * max(0.25, nl_ramp))
+        # Calibrate non-linear delta amplitude cleanly relative to linear score dispersion
+        self.nl_scale = (0.70 * lin_sd) / nl_sd
+        nl_ramp = min(1.0, max(0.0, (len(y_int) - 300) / 5000.0))
+        self.nl_blend_alpha = float(nonlin_blend_alpha * max(0.35, nl_ramp))
 
     def _raw_nonlin_scores(self, X: np.ndarray) -> np.ndarray:
         if (

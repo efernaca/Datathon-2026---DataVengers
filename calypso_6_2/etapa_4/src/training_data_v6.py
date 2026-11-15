@@ -1,4 +1,4 @@
-"""Multi-source zero-leakage historical training dataset & pre-CUT covisit loader for Calypso 6.1."""
+"""Multi-source zero-leakage historical training dataset & pre-CUT covisit loader for Calypso 6.2."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -98,7 +98,7 @@ def build_multisource_v6_training_dataset(
     weights_profile: WeightsProfile | None = None,
     seed: int = 42,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Assemble multi-source zero-leakage training matrix (X, y, sample_weights) for Calypso 6.1."""
+    """Assemble multi-source zero-leakage training matrix (X, y, sample_weights) for Calypso 6.2."""
     wp = weights_profile if weights_profile is not None else snapshot.weights_profile
     rng = np.random.default_rng(seed)
 
@@ -114,11 +114,19 @@ def build_multisource_v6_training_dataset(
     # ── Source 1: Gold IPS Impression Logs ────────────────────────────────────────
     logs_list = list(combined_logs)
     if logs_list and gold_w > 0.0:
-        Xg, yg, wg = build_ips_training_dataset(
+        # Prioritize sessions with purchase/click signals first so positives aren't truncated
+        logs_ordered = sorted(
             logs_list,
+            key=lambda r: (
+                2 if str(r.get("purchased") or "").strip() else (1 if str(r.get("clicked") or "").strip() else 0)
+            ),
+            reverse=True,
+        )
+        Xg, yg, wg = build_ips_training_dataset(
+            logs_ordered,
             lambda req, cands: feature_extractor(snapshot, req, cands, weights_profile=wp),
             exam_power=wp.bandit_exam_power if wp is not None else 0.70,
-            max_sessions=5000,
+            max_sessions=12000,
             purchase_weight=wp.ips_purchase_weight if wp is not None else 2.5,
             click_weight=wp.ips_click_weight if wp is not None else 0.12,
             use_empirical_exam_curve=wp.use_empirical_exam_curve if wp is not None else True,
@@ -321,14 +329,16 @@ def compute_ranker_holdout_auc(
     X: np.ndarray,
     y: np.ndarray,
     *,
-    val_fraction: float = 0.15,
+    val_fraction: float = 0.20,
 ) -> float:
-    """Quick deterministic AUC diagnostic on last val_fraction slice."""
+    """Deterministic stratified-like AUC diagnostic across all multisource blocks."""
     n = int(X.shape[0])
     if n < 100:
         return 0.0
-    split = max(1, int(n * (1.0 - val_fraction)))
-    Xv, yv = X[split:], y[split:]
+    rng = np.random.default_rng(1337)
+    take = max(100, int(n * val_fraction))
+    idx = rng.choice(n, size=min(take, n), replace=False)
+    Xv, yv = X[idx], y[idx]
     if len(np.unique(yv)) < 2:
         return 0.0
     try:

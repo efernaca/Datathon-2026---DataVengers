@@ -33,7 +33,7 @@ def build_collaborative_svd_index(
     cart_hist_rows: Iterable[Mapping[str, Any]] = (),
     recurrent_hist_rows: Iterable[Mapping[str, Any]] = (),
     svd_dim: int = 32,
-    max_interaction_cols: int = 24000,
+    max_interaction_cols: int = 60000,
 ) -> tuple[np.ndarray, dict[str, int]]:
     """Build L2-normalized float32 collaborative + attribute SVD item embeddings."""
     ordered_ids = sorted(active_ids)

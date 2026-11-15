@@ -133,6 +133,13 @@ class RecommenderSnapshotV4:
     svd_item_vectors: Any = None
     svd_pid_to_idx: dict[str, int] = field(default_factory=dict)
 
+    # 6.2 · índexs ràpids de bestsellers per subcategoria/categoria i estadístiques de preu per subcategoria
+    subcat_top_items: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict)
+    cat_top_items: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict)
+    subcat_price_stats: dict[str, tuple[float, float]] = field(default_factory=dict)
+    item_subcat_pop: dict[str, float] = field(default_factory=dict)
+    item_cat_pop: dict[str, float] = field(default_factory=dict)
+
 
 class StateStore:
     """Thread-safe holder enabling zero-lock fast reads and atomic snapshot swaps."""

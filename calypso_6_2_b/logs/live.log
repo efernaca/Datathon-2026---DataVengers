@@ -1,0 +1,992 @@
+
+===== [gestor_models] Training calypso_5_1 (calypso-5.1) at 2026-11-14T22:16:26 =====
+2026-11-14 22:16:58,267 [INFO] calypso5_1.serve: [4.1] Histórico carrito/recurrentes: 213832 carritos pendientes, 43780 pares recurrentes
+2026-11-14 22:17:02,545 [INFO] calypso5_1.serve: Static 60-day history cached to disk in 28.92s
+2026-11-14 22:17:36,650 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v1 ready & cached in 63.02s | active=5263 | ml_alpha=0.064 | regime=cold_surge | fb=3000 | carts_users=66861 | recurrent_users=17762
+2026-11-14 22:17:36,701 [INFO] calypso5_1.serve: [TRAIN-ONLY OK | calypso-5.1] Snapshot v1 trained in 63.07s | active=5263 | ml_alpha=0.064
+[TRAIN-ONLY OK | calypso-5.1] Trained & cached snapshot v1 with 5263 active products
+
+===== [gestor_models] Launching calypso_5_1 (calypso-5.1) at 2026-11-14T22:17:40 =====
+2026-11-14 22:17:49,119 [INFO] calypso5_1.serve: [BOOT] Loaded cached snapshot v1 from disk in 3.205s (5263 active items | profile=conversion_first)
+2026-11-14 22:17:50,795 [INFO] calypso5_1.serve: Calypso 5.1 LIVE (team=team_32, model=calypso-5.1, profile=conversion_first, pid=15620)
+2026-11-14 22:17:51,911 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:17:53,432 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:17:54,829 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 9 fresh answers
+2026-11-14 22:17:55,679 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:17:56,402 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:17:57,122 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:17:57,890 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:17:58,641 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:17:59,280 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:00,983 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:02,623 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:04,097 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:05,725 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:07,004 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:08,291 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:09,478 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:10,790 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:12,125 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:13,243 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:15,457 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:16,693 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:18:17,832 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:18,705 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:19,673 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:20,996 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:21,981 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:22,726 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:18:23,766 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:24,678 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:25,952 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v2 ready & cached in 35.16s | active=5263 | ml_alpha=0.060 | regime=cold_surge | fb=3000 | carts_users=66867 | recurrent_users=17766
+2026-11-14 22:18:25,952 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:26,824 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:27,643 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:28,360 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:18:29,179 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:30,767 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:32,775 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:18:34,043 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:18:35,223 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:36,007 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:36,803 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:37,532 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:39,369 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:18:40,688 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:18:41,922 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:43,105 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:44,029 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:45,181 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:45,930 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:46,632 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:47,366 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:48,087 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:49,129 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:18:49,855 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:51,230 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:52,124 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:53,587 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:54,694 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:18:56,120 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:18:57,436 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:18:58,712 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:00,676 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:19:01,781 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:03,112 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:04,446 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:05,477 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:06,511 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:07,608 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:09,633 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:10,574 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:19:12,635 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:13,627 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:19:14,596 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:15,046 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v5 ready & cached in 32.15s | active=5263 | ml_alpha=0.064 | regime=cold_surge | fb=3000 | carts_users=66875 | recurrent_users=17770
+2026-11-14 22:19:15,486 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:19:16,323 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:19:16,972 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:17,721 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:18,918 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:20,897 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:19:22,129 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:19:23,534 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:24,578 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:19:25,559 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:26,405 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:27,209 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:28,058 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:29,888 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:31,370 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:19:33,668 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:34,819 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:19:35,770 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:36,490 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:37,204 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:37,930 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:38,725 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:39,525 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:41,046 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:41,978 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:43,727 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:19:44,926 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:19:46,241 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:47,317 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:48,682 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:50,105 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:52,363 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:19:53,574 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:19:54,896 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:19:56,393 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:19:57,307 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:19:58,237 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:00,320 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:20:01,238 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:02,267 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:03,133 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:04,154 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:20:04,711 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v8 ready & cached in 30.62s | active=5263 | ml_alpha=0.063 | regime=cold_surge | fb=3000 | carts_users=66884 | recurrent_users=17772
+2026-11-14 22:20:05,125 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:06,114 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:06,791 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:07,447 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:09,078 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:10,716 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:20:12,025 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:13,444 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:14,165 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:14,881 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:15,605 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:16,338 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:20:18,526 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:19,921 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:20:21,253 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:23,154 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:20:24,086 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:24,830 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:20:25,531 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:26,563 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:20:27,613 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:20:28,925 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:29,732 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:31,562 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:32,768 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:34,261 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:35,488 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:36,678 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:39,177 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:20:40,394 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:41,567 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:42,679 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:43,773 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:44,671 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:46,923 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:47,959 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:20:48,964 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:51,011 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:51,850 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:20:52,643 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:52,966 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v11 ready & cached in 30.32s | active=5263 | ml_alpha=0.067 | regime=cold_surge | fb=3000 | carts_users=66893 | recurrent_users=17777
+2026-11-14 22:20:53,365 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:54,165 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:20:54,817 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:20:55,512 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:20:56,528 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:20:58,543 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:20:59,808 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:21:01,057 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:02,266 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:03,070 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:03,778 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:04,627 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:21:05,390 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:07,165 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:21:08,493 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:10,498 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:21:11,794 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:21:12,511 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:13,326 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:14,047 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:14,732 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:15,450 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:21:16,182 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:21:16,921 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:21:17,616 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:19,127 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:20,122 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:22,131 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:21:23,498 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:24,763 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:26,027 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:21:28,132 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:29,430 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:21:30,574 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:31,367 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:32,355 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:21:34,960 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:21:35,969 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:36,999 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:39,311 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:21:40,088 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:21:40,888 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:41,590 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v14 ready & cached in 29.86s | active=5263 | ml_alpha=0.066 | regime=cold_surge | fb=3000 | carts_users=66900 | recurrent_users=17779
+2026-11-14 22:21:41,682 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:42,435 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:43,040 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:43,774 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:21:44,487 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:45,543 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:47,650 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:49,050 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:21:50,681 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:51,421 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:52,246 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:52,952 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:21:53,654 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:55,567 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:56,775 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:21:58,093 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:21:59,965 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:22:00,653 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:22:01,368 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:22:02,034 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:02,725 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:22:03,402 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:04,164 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:05,770 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:07,241 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:22:08,448 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:09,906 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:22:11,429 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:12,665 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:14,423 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:15,629 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:16,867 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:22:18,204 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:19,320 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:20,249 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:21,135 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:23,421 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:24,404 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:22:25,429 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:27,272 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:22:28,083 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:22:28,907 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v17 ready & cached in 29.24s | active=5263 | ml_alpha=0.064 | regime=cold_surge | fb=3000 | carts_users=66906 | recurrent_users=17782
+2026-11-14 22:22:29,018 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:22:29,767 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:30,479 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:22:31,362 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:32,184 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:33,330 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:35,429 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:36,648 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:38,019 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:22:38,923 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:22:39,607 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:40,380 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:41,950 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:43,010 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:45,162 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:22:45,840 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:46,535 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:47,289 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:48,022 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:48,744 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:49,931 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:22:51,873 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:53,016 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:22:54,645 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:55,984 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:22:57,213 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:22:59,334 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:00,599 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:23:02,028 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:03,488 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:23:04,332 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:05,137 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:23:07,430 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:08,334 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:23:09,070 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:10,092 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:12,141 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:12,851 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:23:13,277 [WARNING] calypso5_1.serve: Stage4BackgroundUpdater error: [WinError 5] Acceso denegado: 'C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_5_1\\cache\\.snapshot_v4_latest.pkl._3h163tg.tmp' -> 'C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_5_1\\cache\\snapshot_v4_latest.pkl'
+2026-11-14 22:23:13,849 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:23:14,494 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:15,211 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:16,224 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:16,892 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:23:17,671 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:19,138 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:20,061 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:22,217 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:23,232 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:23:24,386 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:25,884 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:23:27,012 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:28,206 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:30,496 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:31,971 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:23:33,088 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:23:34,124 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:34,818 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:35,825 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:38,026 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:23:39,306 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:40,983 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:23:41,966 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:42,583 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v21 ready & cached in 28.96s | active=5263 | ml_alpha=0.067 | regime=cold_surge | fb=3000 | carts_users=66914 | recurrent_users=17784
+2026-11-14 22:23:42,736 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:43,563 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:44,255 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:45,047 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:23:45,812 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:47,614 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:48,822 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:23:50,250 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:51,048 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:23:51,882 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:52,679 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:23:53,557 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:55,407 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:56,688 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:23:58,571 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:23:59,371 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:00,094 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:00,811 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:01,617 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:24:02,328 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:24:03,383 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:04,930 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:24:06,937 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:08,477 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:10,358 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:24:11,572 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:13,192 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:14,420 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:15,210 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:17,264 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:18,274 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:19,809 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:24:20,684 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:24:21,240 [WARNING] calypso5_1.serve: Stage4BackgroundUpdater error: [WinError 5] Acceso denegado: 'C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_5_1\\cache\\.snapshot_v4_latest.pkl.14jx5r99.tmp' -> 'C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_5_1\\cache\\snapshot_v4_latest.pkl'
+2026-11-14 22:24:21,435 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:24:22,180 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:22,898 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:24,003 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:24,663 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:25,445 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:26,492 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:28,295 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:24:29,507 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:31,008 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:33,018 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:34,242 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:24:35,515 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:36,601 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:24:37,815 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:24:40,351 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:41,180 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:41,935 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:42,741 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:24:42,979 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v25 ready & cached in 21.40s | active=5263 | ml_alpha=0.064 | regime=cold_surge | fb=3000 | carts_users=66923 | recurrent_users=17786
+2026-11-14 22:24:43,692 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:24:44,554 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:45,360 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:46,112 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:47,639 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:48,725 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:24:50,012 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:24:50,732 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:24:51,548 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:24:52,369 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:53,341 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:55,100 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:24:57,326 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:24:58,666 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:00,974 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:01,699 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:02,412 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:03,212 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:04,802 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:05,811 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:25:07,808 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:08,935 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:10,331 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:11,769 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:25:13,713 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:14,850 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:16,072 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:17,294 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:18,585 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:19,454 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:20,316 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:25:22,454 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:25:23,295 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:25:24,179 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:26,320 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:27,292 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:28,213 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:28,574 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v28 ready & cached in 29.50s | active=5263 | ml_alpha=0.060 | regime=cold_surge | fb=3000 | carts_users=66936 | recurrent_users=17789
+2026-11-14 22:25:28,887 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:29,774 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:25:30,673 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:25:31,499 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:32,624 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:34,616 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:36,201 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:36,896 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:37,566 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:38,413 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:39,750 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:40,945 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:42,986 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:25:43,880 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:44,809 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:45,545 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:46,284 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:47,141 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:25:47,782 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:48,509 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:49,215 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:49,901 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:51,010 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:25:52,568 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:25:53,884 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:55,141 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:25:57,002 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:25:58,258 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:25:59,661 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:26:01,528 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:26:03,541 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:26:04,244 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:05,939 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:06,854 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:26:07,633 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:08,050 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v31 ready & cached in 24.45s | active=5263 | ml_alpha=0.059 | regime=cold_surge | fb=3000 | carts_users=66941 | recurrent_users=17790
+2026-11-14 22:26:08,455 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:09,137 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:09,856 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:10,501 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:11,302 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:26:13,167 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:26:14,416 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:26:15,742 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:26:16,494 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:17,294 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:26:18,029 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:19,611 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:26:23,205 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:26:24,029 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:26:25,046 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:26:25,882 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:26:26,895 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:26:29,675 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:31,159 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:26:33,438 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:26:34,676 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:26:35,899 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:26:37,437 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:26:39,242 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:26:41,679 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:26:44,929 [ERROR] calypso5_1.serve: Calypso 5.1 FastLoop error: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:26:46,959 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:26:48,339 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:26:50,253 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 10 fresh answers
+2026-11-14 22:26:51,260 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:53,203 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:26:54,341 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 10 fresh answers
+2026-11-14 22:26:56,208 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:26:57,546 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:26:58,496 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:26:59,565 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:27:00,395 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v34 ready & cached in 37.25s | active=5263 | ml_alpha=0.059 | regime=cold_surge | fb=3000 | carts_users=66946 | recurrent_users=17791
+2026-11-14 22:27:00,575 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:27:01,296 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:03,661 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:04,435 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:27:07,759 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:08,993 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:27:10,207 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:11,242 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:27:12,815 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:27:13,576 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:15,653 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:27:17,884 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:27:19,265 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:27:20,714 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:21,867 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:27:22,738 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:27:23,377 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:24,118 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:27:24,881 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:25,918 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:27:27,021 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:27:29,456 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:27:31,588 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:27:32,886 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:27:34,136 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:35,849 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:37,100 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:27:38,312 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:27:41,860 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:27:43,038 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:27:44,372 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:45,657 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:48,725 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:27:49,864 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:27:50,865 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:27:51,746 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:54,487 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:27:55,603 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:27:57,668 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:27:59,198 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:28:00,678 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:28:01,699 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v37 ready & cached in 40.24s | active=5263 | ml_alpha=0.060 | regime=cold_surge | fb=3000 | carts_users=66956 | recurrent_users=17793
+2026-11-14 22:28:01,779 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:28:02,404 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:03,138 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:28:03,827 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:04,498 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:28:05,425 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:28:06,825 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:28:08,069 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:28:09,486 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:28:10,370 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 12 fresh answers
+2026-11-14 22:28:11,004 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:28:11,699 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:13,234 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:28:17,205 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:28:18,977 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:28:19,804 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:20,576 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:28:21,300 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:22,101 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:28:22,794 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:28:23,566 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:25,204 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:28:27,840 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 10 fresh answers
+2026-11-14 22:28:29,092 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:28:30,890 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:28:32,304 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:28:33,429 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:28:34,605 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:36,750 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:28:37,910 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:28:39,285 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+
+===== [gestor_models] Training calypso_5_1 (calypso-5.1) at 2026-11-14T22:41:42 =====
+2026-11-14 22:42:21,458 [INFO] calypso5_1.serve: [4.1] Histórico carrito/recurrentes: 213832 carritos pendientes, 43780 pares recurrentes
+2026-11-14 22:42:25,722 [INFO] calypso5_1.serve: Static 60-day history cached to disk in 34.62s
+2026-11-14 22:42:56,521 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v1 ready & cached in 65.42s | active=5263 | ml_alpha=0.087 | regime=cold_surge | fb=3000 | carts_users=67104 | recurrent_users=17841
+2026-11-14 22:42:56,546 [INFO] calypso5_1.serve: [TRAIN-ONLY OK | calypso-5.1] Snapshot v1 trained in 67.53s | active=5263 | ml_alpha=0.087
+[TRAIN-ONLY OK | calypso-5.1] Trained & cached snapshot v1 with 5263 active products
+
+===== [gestor_models] Launching calypso_5_1 (calypso-5.1) at 2026-11-14T22:42:58 =====
+2026-11-14 22:43:06,406 [INFO] calypso5_1.serve: [BOOT] Loaded cached snapshot v1 from disk in 2.416s (5263 active items | profile=conversion_first)
+2026-11-14 22:43:07,883 [INFO] calypso5_1.serve: Calypso 5.1 LIVE (team=team_32, model=calypso-5.1, profile=conversion_first, pid=12768)
+2026-11-14 22:43:09,071 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:43:10,121 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:43:10,843 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:43:11,571 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:12,295 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:13,008 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:13,760 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:43:14,449 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:16,010 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:17,845 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:43:19,698 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:43:21,034 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:43:22,141 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:43:23,132 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:24,293 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:26,203 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:43:27,374 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:43:28,165 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:29,635 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:30,450 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:43:32,359 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:43:33,336 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:43:33,939 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v2 ready & cached in 26.05s | active=5263 | ml_alpha=0.086 | regime=cold_surge | fb=3000 | carts_users=67111 | recurrent_users=17842
+2026-11-14 22:43:34,079 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:34,846 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:35,642 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:36,438 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:43:37,245 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:39,013 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:40,405 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:43:41,806 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:43:42,623 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:43,717 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:44,549 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:46,216 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:48,696 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:43:49,858 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:43:50,813 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:51,564 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:43:52,299 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:43:53,082 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:43:53,882 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:43:54,743 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:43:55,467 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:56,318 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:43:57,489 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:43:59,116 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:00,544 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:44:02,200 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:03,280 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:44:05,296 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:44:06,793 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:07,735 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:09,655 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:10,651 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:44:12,822 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:13,997 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:44:14,644 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v5 ready & cached in 25.59s | active=5263 | ml_alpha=0.087 | regime=cold_surge | fb=3000 | carts_users=67117 | recurrent_users=17843
+2026-11-14 22:44:14,845 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:16,283 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:17,067 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:17,850 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:44:19,401 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:44:20,404 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:44:21,722 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:22,442 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:23,160 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:44:23,935 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:24,829 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:26,390 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:28,339 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:29,390 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:44:30,123 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:30,821 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:31,473 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:44:32,219 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:32,937 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:33,702 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:44:34,362 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:35,354 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:44:36,086 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:37,731 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:44:39,157 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:41,056 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:42,229 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:44:43,466 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:44,596 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:45,669 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:46,474 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:48,848 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:44:49,651 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:50,696 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:44:51,612 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:51,724 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v8 ready & cached in 21.76s | active=5263 | ml_alpha=0.085 | regime=cold_surge | fb=3000 | carts_users=67125 | recurrent_users=17843
+2026-11-14 22:44:52,284 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:53,084 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:53,965 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:54,802 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:44:56,524 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:57,748 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:44:59,189 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:44:59,963 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:00,698 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:01,403 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:02,792 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:04,484 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:05,781 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:06,774 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:07,599 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:08,372 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:09,170 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:09,816 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:10,845 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:45:11,844 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:13,371 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:15,190 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:16,533 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:18,209 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:19,554 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:20,651 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:22,750 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:23,694 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:25,663 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:26,498 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:45:27,330 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:28,232 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:28,747 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v11 ready & cached in 21.95s | active=5263 | ml_alpha=0.080 | regime=cold_surge | fb=3000 | carts_users=67130 | recurrent_users=17845
+2026-11-14 22:45:29,090 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:29,805 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:30,536 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:31,250 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:31,994 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:33,624 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:34,617 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:35,888 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:36,529 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:37,284 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:38,103 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:39,040 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:41,390 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-14 22:45:42,873 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 12 fresh answers
+2026-11-14 22:45:44,248 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:45,118 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:45:45,885 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:46,613 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:47,581 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:48,653 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:45:49,780 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:51,176 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:52,978 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:45:54,321 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:45:55,973 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:45:58,064 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:45:59,278 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:46:00,434 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:03,033 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 8 fresh answers
+2026-11-14 22:46:04,213 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:05,239 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:06,767 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:07,814 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:08,893 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:09,966 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v14 ready & cached in 26.09s | active=5263 | ml_alpha=0.087 | regime=cold_surge | fb=3000 | carts_users=67137 | recurrent_users=17845
+2026-11-14 22:46:09,986 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:10,687 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:11,407 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:12,308 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:13,227 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:14,602 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:16,075 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:17,936 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:18,756 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:46:19,576 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:20,223 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:22,214 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:23,497 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:46:24,694 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:25,516 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:26,477 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:27,162 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:27,964 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:28,695 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:29,318 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:30,010 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:30,846 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:32,283 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:33,783 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:34,971 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:46:37,432 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:46:38,634 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:46:39,996 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:42,118 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:46:43,232 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:46:44,189 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:46,656 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:46:47,493 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:48,448 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:49,313 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:49,806 [INFO] calypso5_1.serve: [calypso-5.1 | profile=conversion_first] Live snapshot v17 ready & cached in 24.62s | active=5263 | ml_alpha=0.086 | regime=cold_surge | fb=3000 | carts_users=67143 | recurrent_users=17847
+2026-11-14 22:46:50,054 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:50,768 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:51,488 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:46:52,127 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:52,992 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:54,840 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:46:56,312 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 6 fresh answers
+2026-11-14 22:46:57,700 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:46:58,592 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:46:59,418 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:00,772 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:02,709 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:03,852 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:47:05,141 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:05,960 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:06,780 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:07,740 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:47:08,848 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:09,572 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:47:10,469 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:11,173 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:47:12,396 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:13,940 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:15,207 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 7 fresh answers
+2026-11-14 22:47:16,726 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:18,599 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:47:19,711 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:21,060 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:47:22,998 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:24,265 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:47:25,364 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:27,662 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:28,805 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:47:29,812 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:30,868 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:31,675 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:32,514 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:47:32,524 [WARNING] calypso5_1.serve: Stage4BackgroundUpdater error: [WinError 5] Acceso denegado: 'C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_5_1\\cache\\.snapshot_v4_latest.pkl.asyoum4_.tmp' -> 'C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_5_1\\cache\\snapshot_v4_latest.pkl'
+2026-11-14 22:47:33,407 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:34,182 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:47:34,933 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:47:35,645 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 2 fresh answers
+2026-11-14 22:47:36,370 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 1 fresh answers
+2026-11-14 22:47:37,196 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:38,983 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:40,914 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:42,028 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:47:43,206 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:44,562 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:46,212 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:47,377 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+2026-11-14 22:47:48,852 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 4 fresh answers
+2026-11-14 22:47:50,141 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 3 fresh answers
+2026-11-14 22:47:51,658 [INFO] calypso5_1.serve: [calypso-5.1] Submitted 5 fresh answers
+
+===== [gestor_models] Training calypso_6_1 (calypso-6.1) at 2026-11-15T04:00:59 =====
+2026-11-15 04:01:39,695 [INFO] calypso6_1.serve: [4.1] Histórico carrito/recurrentes: 213832 carritos pendientes, 43780 pares recurrentes
+2026-11-15 04:01:42,684 [INFO] calypso6_1.serve: Static 60-day history cached to disk in 35.69s
+C:\Anaconda\Lib\site-packages\joblib\externals\loky\backend\context.py:136: UserWarning: Could not find the number of physical cores for the following reason:
+[WinError 2] El sistema no puede encontrar el archivo especificado
+Returning the number of logical cores instead. You can silence this warning by setting LOKY_MAX_CPU_COUNT to the number of cores you want to use.
+  warnings.warn(
+  File "C:\Anaconda\Lib\site-packages\joblib\externals\loky\backend\context.py", line 257, in _count_physical_cores
+    cpu_info = subprocess.run(
+               ^^^^^^^^^^^^^^^
+  File "C:\Anaconda\Lib\subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Anaconda\Lib\subprocess.py", line 1026, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "C:\Anaconda\Lib\subprocess.py", line 1538, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-11-15 04:02:38,769 [INFO] calypso6_1.serve: [calypso-6.1 | profile=conversion_first] Live snapshot v1 ready & cached in 91.79s | active=5463 | ml_alpha=0.147 | regime=cold_surge | fb=3000 | carts_users=69368 | recurrent_users=18852
+2026-11-15 04:02:38,785 [INFO] calypso6_1.serve: [TRAIN-ONLY OK | calypso-6.1] Snapshot v1 trained in 93.64s | active=5463 | ml_alpha=0.147
+[TRAIN-ONLY OK | calypso-6.1] Trained & cached snapshot v1 with 5463 active products
+
+===== [gestor_models] Launching calypso_6_1 (calypso-6.1) at 2026-11-15T04:02:40 =====
+2026-11-15 04:02:48,856 [INFO] calypso6_1.serve: [BOOT] Loaded cached snapshot v1 from disk in 2.589s (5463 active items | profile=conversion_first)
+2026-11-15 04:02:50,081 [INFO] calypso6_1.serve: Calypso 6.1 LIVE (team=team_32, model=calypso-6.1, profile=conversion_first, pid=22648)
+2026-11-15 04:02:51,020 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/query (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF6BC02480>, 'Conne
+2026-11-15 04:02:51,946 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/query (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF27EC64E0>, 'Conne
+2026-11-15 04:02:52,843 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:02:54,254 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:02:55,603 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:02:56,643 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:02,485 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 6 fresh answers
+2026-11-15 04:03:03,816 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:05,041 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:06,325 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 6 fresh answers
+2026-11-15 04:03:06,954 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:03:08,987 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:03:09,910 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:03:11,034 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:03:11,650 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:03:14,456 [ERROR] calypso6_1.serve: Calypso 6.1 FastLoop error: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/tables/submissions?database=team_32 (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF4EC62000>, 'Connection to api.rawtree.com timed out. (connect timeout=0.9)'))
+2026-11-15 04:03:16,049 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/query (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF3FC80200>, 'Conne
+2026-11-15 04:03:20,453 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 12 fresh answers
+2026-11-15 04:03:21,116 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:03:22,677 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:03:24,764 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+C:\Anaconda\Lib\site-packages\joblib\externals\loky\backend\context.py:136: UserWarning: Could not find the number of physical cores for the following reason:
+[WinError 2] El sistema no puede encontrar el archivo especificado
+Returning the number of logical cores instead. You can silence this warning by setting LOKY_MAX_CPU_COUNT to the number of cores you want to use.
+  warnings.warn(
+  File "C:\Anaconda\Lib\site-packages\joblib\externals\loky\backend\context.py", line 257, in _count_physical_cores
+    cpu_info = subprocess.run(
+               ^^^^^^^^^^^^^^^
+  File "C:\Anaconda\Lib\subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Anaconda\Lib\subprocess.py", line 1026, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "C:\Anaconda\Lib\subprocess.py", line 1538, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-11-15 04:03:26,125 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:03:27,169 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:28,672 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:29,723 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/query (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF6E741CA0>, 'Conne
+2026-11-15 04:03:30,641 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/query (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF6E7420C0>, 'Conne
+2026-11-15 04:03:31,816 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Max retries exceeded with url: /v1/query (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x000001BF6CF34980>, 'Conne
+2026-11-15 04:03:33,073 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 12 fresh answers
+2026-11-15 04:03:34,148 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:36,357 [INFO] calypso6_1.serve: [calypso-6.1 | profile=conversion_first] Live snapshot v2 ready & cached in 46.27s | active=5463 | ml_alpha=0.150 | regime=conservative_fallback | fb=3000 | carts_users=69374 | recurrent_users=18853
+2026-11-15 04:03:36,754 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:03:37,907 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:03:38,685 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:03:39,505 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:03:42,252 [ERROR] calypso6_1.serve: Calypso 6.1 FastLoop error: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:46,471 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:03:47,288 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+2026-11-15 04:03:47,913 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:03:48,556 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:03:51,108 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:03:53,226 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:03:54,351 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:03:55,010 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:03:56,035 [WARNING] etapa_4.src.rawtree_client: RawTree query_safe warning: HTTPSConnectionPool(host='api.rawtree.com', port=443): Read timed out. (read timeout=0.9)
+2026-11-15 04:03:56,796 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+2026-11-15 04:03:57,929 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:03:58,858 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:03:59,476 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:00,294 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:01,319 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:01,934 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:02,649 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:04:03,467 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:04,505 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:05,514 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:04:06,130 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:06,846 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:04:07,465 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:04:08,079 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:10,512 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 6 fresh answers
+2026-11-15 04:04:13,232 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:15,521 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:04:18,676 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:20,510 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:04:22,664 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 6 fresh answers
+2026-11-15 04:04:23,743 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:04:26,162 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:27,445 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:04:28,454 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:29,070 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:04:29,685 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:04:30,605 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:04:32,550 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:04:33,266 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:04:34,190 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:04:34,806 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:04:36,285 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:04:39,041 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 6 fresh answers
+2026-11-15 04:04:42,530 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:04:44,907 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:04:49,669 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+2026-11-15 04:04:50,912 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:04:52,538 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:54,006 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:55,805 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+2026-11-15 04:04:56,517 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:04:57,263 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:04:59,402 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:00,213 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 7 fresh answers
+2026-11-15 04:05:01,031 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:01,782 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:05:02,596 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:03,269 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:03,888 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:04,511 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:05,525 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:06,242 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:06,858 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:07,566 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:08,309 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:09,140 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:09,825 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:10,542 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:11,259 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:11,885 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:05:12,500 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:13,222 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:13,922 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:14,655 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:15,256 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:15,906 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:16,585 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:17,203 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:17,816 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:18,533 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:19,148 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:19,874 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:20,889 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:21,498 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 1 fresh answers
+2026-11-15 04:05:22,236 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 4 fresh answers
+2026-11-15 04:05:22,934 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:30,112 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 2 fresh answers
+2026-11-15 04:05:31,564 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 8 fresh answers
+2026-11-15 04:05:32,469 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+2026-11-15 04:05:33,393 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:35,138 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 5 fresh answers
+2026-11-15 04:05:36,368 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+2026-11-15 04:05:37,296 [INFO] calypso6_1.serve: [calypso-6.1] Submitted 3 fresh answers
+
+===== [gestor_models] Training calypso_6_2_b (calypso-6.2b) at 2026-11-15T06:31:06 =====
+2026-11-15 06:31:36,948 [INFO] calypso6_2b.serve: [4.1] Histórico carrito/recurrentes: 213832 carritos pendientes, 43780 pares recurrentes
+2026-11-15 06:31:43,283 [INFO] calypso6_2b.serve: Static 60-day history cached to disk in 24.32s

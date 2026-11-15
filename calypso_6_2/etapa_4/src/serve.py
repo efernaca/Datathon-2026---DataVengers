@@ -44,7 +44,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("calypso6_1.serve")
+logger = logging.getLogger("calypso6_2.serve")
 
 
 def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
@@ -233,6 +233,7 @@ LIMIT 400
 
 SQL_HISTORY_SESSIONS_TRAIN = """
 SELECT request_id::String AS request_id,
+       ts::String AS ts,
        user_id::String AS user_id,
        false AS is_new_user,
        context.region::String AS region,
@@ -244,7 +245,8 @@ SELECT request_id::String AS request_id,
        ifNull(purchased::String, '') AS purchased
 FROM shop.history_sessions
 WHERE length(shown) >= 10
-LIMIT 3000
+ORDER BY if(purchased IS NOT NULL AND purchased::String != '', 2, if(clicked IS NOT NULL AND clicked::String != '', 1, 0)) DESC
+LIMIT 12000
 """
 
 
@@ -1126,9 +1128,9 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
-                "model_name": "calypso 6.1",
+                "model_name": "calypso 6.2",
                 "model_version": cfg.model_version,
-                "folder": "calypso_6_1",
+                "folder": "calypso_6_2",
                 "profile": (
                     snap.weights_profile.profile_name
                     if (snap is not None and snap.weights_profile)
@@ -1179,7 +1181,7 @@ def main() -> None:
         config=cfg,
     )
     logger.info(
-        "Calypso 6.1 LIVE (team=%s, model=%s, profile=%s, pid=%d)",
+        "Calypso 6.2 LIVE (team=%s, model=%s, profile=%s, pid=%d)",
         cfg.team_id,
         cfg.model_version,
         active_wp.profile_name,
@@ -1200,7 +1202,7 @@ def main() -> None:
                 last_batch_size = answered
                 logger.info("[%s] Submitted %d fresh answers", cfg.model_version, answered)
         except Exception as exc:
-            logger.error("Calypso 6.1 FastLoop error: %s", exc)
+            logger.error("Calypso 6.2 FastLoop error: %s", exc)
             time.sleep(0.35)
 
         now_t = time.time()

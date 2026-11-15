@@ -1,7 +1,7 @@
 {
-  "name": "calypso 6.1",
-  "model_version": "calypso-6.1",
-  "folder": "calypso_6_1",
+  "name": "calypso 6.2",
+  "model_version": "calypso-6.2",
+  "folder": "calypso_6_2",
   "entrypoint": "serve.py",
   "monitor": "monitor.py",
   "eval": "eval.py",
@@ -11,5 +11,5 @@
   "train_args": ["--train-only"],
   "heartbeat_file": "cache/heartbeat.json",
   "log_file": "logs/live.log",
-  "description": "Calypso 6.1 = Gran arquitectura híbrida de màxima conversió: ranker ML de 40 features (IPS Lineal + MLP residual no lineal en NumPy), EASE + difusió 2-hop + co-visites + embeddings col·laboratius SVD 32d, matrius condicionades per pàgina (product/category/home), regles contínues de carret/recurrència i ~240 pesos/escalars optimitzables."
+  "description": "Calypso 6.2 = Evolució optimitzada sobre 6.1 que corregeix tots els colls d'ampolla detectats: 50 features ML (repetició de vistes, decay temporal real basat en timestamp de petició, bestsellers intra-subcategoria/categoria, preu relatiu a subcategoria, interaccions col·laboratives), MLP residual balancejat IPS ((64, 32)), pool de candidats ampliat (92) amb quota subcategoria/categoria i ítems cold rankejats, matrius de pàgina diferenciades, EASE anti-hub i SVD 60k columnes."
 }

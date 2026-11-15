@@ -1,4 +1,4 @@
-"""Modular profile manager, offline preset evaluator, and iterative conversion optimizer for Calypso 6.1."""
+"""Modular profile manager, offline preset evaluator, and iterative conversion optimizer for Calypso 6.2."""
 from __future__ import annotations
 
 import argparse
@@ -38,15 +38,19 @@ OPTIMIZABLE_PARAMS: dict[str, tuple[float, float, float]] = {
     "w_same_top_subcat": (0.00, 0.45, 0.06),
     "w_same_top_brand": (0.00, 0.25, 0.04),
     "w_ease_score": (0.05, 1.20, 0.12),
-    "w_hop2_score": (0.00, 0.70, 0.08),
+    "w_hop2_seq_score": (0.00, 0.70, 0.08),
     "w_covisit_score": (0.00, 0.75, 0.08),
     "w_svd_session_sim": (0.00, 0.75, 0.08),
     "w_svd_user_sim": (0.00, 0.65, 0.08),
     "w_is_last_viewed": (-0.40, 0.40, 0.08),
-    "w_cart_active_decay": (0.10, 1.20, 0.12),
-    "w_recurrent_log": (0.05, 0.85, 0.10),
+    "w_in_active_cart_decay": (0.10, 1.20, 0.12),
+    "w_recurrent_log_norm": (0.05, 0.85, 0.10),
     "w_discount_ratio": (0.00, 0.45, 0.06),
-    "w_same_category": (0.00, 0.45, 0.06),
+    "w_same_top_cat": (0.00, 0.45, 0.06),
+    "w_rv_repeat_count_norm": (0.00, 0.55, 0.08),
+    "w_rv_temporal_recency": (0.00, 0.55, 0.08),
+    "w_subcat_pop_rank_score": (0.00, 0.55, 0.08),
+    "w_ease_x_same_subcat": (0.00, 0.70, 0.08),
     "v3_ease_weight": (0.10, 0.90, 0.10),
     "hop2_weight": (0.05, 0.55, 0.06),
     "covisit_blend_weight": (0.05, 0.65, 0.08),
@@ -58,6 +62,8 @@ OPTIMIZABLE_PARAMS: dict[str, tuple[float, float, float]] = {
     "transition_dest_pop_gamma": (0.00, 0.85, 0.12),
     "view_base_bonus": (0.00, 0.90, 0.12),
     "slot1_category_match_bonus": (0.00, 0.60, 0.08),
+    "slot1_cat_only_ratio": (0.05, 1.00, 0.12),
+    "pool_subcat_top_quota": (2.0, 18.0, 2.0),
     "cart_active_score_bonus": (0.20, 2.20, 0.25),
     "cold_explore_start_slot_cold": (4.0, 9.0, 1.0),
     "cold_boost_on_cold_session": (0.60, 1.80, 0.15),
@@ -250,7 +256,7 @@ def _format_preset_eval_table(results: list[dict[str, Any]]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calypso 6.1 Modular Profile Tuner & Optimizer")
+    parser = argparse.ArgumentParser(description="Calypso 6.2 Modular Profile Tuner & Optimizer")
     parser.add_argument("--profile-path", type=str, default="", help="Path to weights_profile.json")
     parser.add_argument("--list-presets", action="store_true", help="List available built-in presets")
     parser.add_argument("--show", action="store_true", help="Print current active weights profile JSON")
@@ -268,7 +274,7 @@ def main() -> None:
     target_path = cfg.resolve_weights_profile_path()
 
     if args.list_presets:
-        print("=== Calypso 6.1 Built-in Presets ===")
+        print("=== Calypso 6.2 Built-in Presets ===")
         for name in list_presets():
             p = PRESETS[name]
             print(f"- {name:<22}: {p.description}")

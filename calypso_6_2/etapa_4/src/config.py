@@ -63,12 +63,12 @@ def load_dotenv_files() -> None:
 
 @dataclass(frozen=True, slots=True)
 class ConfigV4:
-    """Immutable configuration for Stage 4 / Calypso 6.1 (hybrid high-conversion architecture)."""
+    """Immutable configuration for Stage 4 / Calypso 6.2 (hybrid high-conversion architecture)."""
 
     api_url: str = "https://api.rawtree.com"
     team_id: str = ""
     api_key: str = ""
-    model_version: str = "calypso-6.1"
+    model_version: str = "calypso-6.2"
     weights_profile_path: str = "weights_profile.json"
 
     # SLA-hardened Fast / Live / Stock cadence timings
@@ -81,7 +81,7 @@ class ConfigV4:
     cache_dir: str = "cache"
 
     # Fast candidate retrieval & sequential scoring
-    candidate_pool_size: int = 76
+    candidate_pool_size: int = 92
     recency_decay: float = 0.70
     lift_beta: float = 0.45
     lift_prior_pop: float = 30.0
@@ -90,7 +90,7 @@ class ConfigV4:
     affinity_weight: float = 0.42
     price_compat_weight: float = 0.22
     ctx_bayes_weight: float = 0.36
-    global_pop_weight: float = 0.72
+    global_pop_weight: float = 0.64
     live_trend_weight: float = 0.3585
     weight_forward_cold: float = 0.52
     weight_reverse_cold_graft: float = 0.38

@@ -1,4 +1,4 @@
-"""Centralized 240+ scalar & matrix modular hyperparameter profile for Calypso 6.1."""
+"""Centralized 255+ scalar & matrix modular hyperparameter profile for Calypso 6.2."""
 from __future__ import annotations
 
 import json
@@ -58,26 +58,28 @@ _PAGE_FIELD_MAP: dict[str, str] = {
     "home": "page_home",
 }
 
-_DEFAULT_40_MIN_RATIOS: tuple[float, ...] = (
+_DEFAULT_50_MIN_RATIOS: tuple[float, ...] = (
     0.72, 0.75, 0.65, 0.55, 0.45, 0.50, 0.30, 0.30, 0.00, 0.55, 0.55, 0.00, 0.40, 0.00,
     0.35, 0.25, 0.25, 0.30, 0.25, 0.00, 0.20,
     0.40, 0.25, 0.25, 0.10, 0.20, 0.00, 0.20, 0.10,
     0.00, 0.00, 0.00, 0.20, 0.20, 0.20, 0.20, 0.20, 0.15, 0.20, 0.15,
+    0.25, 0.20, 0.25, 0.10, 0.15, 0.20, 0.20, 0.15, 0.15, 0.20,
 )
 
 
 @dataclass(frozen=True, slots=True)
 class WeightsProfile:
-    """Hot-reloadable 240+ scalar optimization & inference profile for Calypso 6.1."""
+    """Hot-reloadable 255+ scalar optimization & inference profile for Calypso 6.2."""
 
     # Identification
     profile_name: str = "conversion_first"
     description: str = (
-        "Calypso 6.1: Arquitectura híbrida de màxima conversió (40 features, IPS Lineal + MLP residual NumPy, "
-        "EASE + 2-hop + covisit + SVD 32d, matrius per pàgina i regles contínues de carret/recurrència)."
+        "Calypso 6.2: Arquitectura híbrida evolucionada (50 features, destilación Teacher->MLP ponderada IPS, "
+        "timestamps reales de sesión/carrito, recuperación intra-subcategoría + hop2 + EASE anti-hub + SVD 32d, "
+        "y matrices diferenciadas por página)."
     )
 
-    # ── 40 Prior Weights matching reranker.FEATURE_NAMES exact order ────────────────
+    # ── 50 Prior Weights matching reranker.FEATURE_NAMES exact order ────────────────
     # 0..13 (Base Stage 4 calibrated conversion priors)
     w_seq_lift: float = 1.15
     w_self_cvr_view: float = 2.2702
@@ -85,7 +87,7 @@ class WeightsProfile:
     w_user_affinity: float = 0.42
     w_price_compat: float = 0.22
     w_ctx_bayes: float = 0.36
-    w_global_pop: float = 0.72
+    w_global_pop: float = 0.80
     w_live_trend: float = 0.3585
     w_is_new_product: float = 0.03
     w_reverse_graft: float = 0.38
@@ -99,7 +101,7 @@ class WeightsProfile:
     w_covisit_score: float = 0.00
     w_svd_session_sim: float = 0.12
     w_svd_user_sim: float = 0.10
-    w_is_last_viewed: float = 0.20
+    w_is_last_viewed: float = 0.22
     w_view_recency_max: float = 0.30
     # 21..28 (Continuous cart, recurrent, discount & session coherence)
     w_in_active_cart_decay: float = 1.30
@@ -122,9 +124,20 @@ class WeightsProfile:
     w_ease_x_price_compat: float = 0.00
     w_cart_x_self_cvr: float = 0.20
     w_cold_sim_x_pop: float = 0.00
+    # 40..49 (Calypso 6.2 temporal views, within-subcat pop, subcat price & graph interactions)
+    w_rv_repeat_count_norm: float = 0.22
+    w_rv_temporal_recency: float = 0.18
+    w_subcat_pop_rank_score: float = 0.10
+    w_cat_pop_rank_score: float = 0.12
+    w_price_rel_subcat_compat: float = 0.10
+    w_is_viewed_cart_combo: float = 0.22
+    w_ease_x_same_subcat: float = 0.05
+    w_hop2_x_same_subcat: float = 0.00
+    w_svd_sess_x_subcat: float = 0.05
+    w_ctx_x_no_views: float = 0.18
 
-    # ML anchoring ratios (40 elements aligned with FEATURE_NAMES)
-    min_prior_ratios: tuple[float, ...] = _DEFAULT_40_MIN_RATIOS
+    # ML anchoring ratios (50 elements aligned with FEATURE_NAMES)
+    min_prior_ratios: tuple[float, ...] = _DEFAULT_50_MIN_RATIOS
     max_prior_multiplier: float = 2.4
 
     # 5 User Segment Multipliers x 8: (seq, intent, aff, ctx, pop, trend, cold, ease_svd)
@@ -135,9 +148,9 @@ class WeightsProfile:
     seg_known_cold: tuple[float, ...] = (0.0, 1.12, 1.12, 1.35, 1.22, 1.25, 1.25, 1.10)
 
     # 3 Page Context Matrices x 8: (seq, self_cvr, pop_ctx, aff_intent, ease_svd, cart, recurrent, mmr)
-    page_product: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00)
-    page_category: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00)
-    page_home: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00)
+    page_product: tuple[float, ...] = (1.04, 1.02, 0.98, 0.99, 1.04, 1.02, 0.99, 0.97)
+    page_category: tuple[float, ...] = (1.01, 1.00, 1.03, 1.02, 1.02, 1.00, 1.00, 1.00)
+    page_home: tuple[float, ...] = (0.90, 0.95, 1.06, 1.10, 1.06, 1.05, 1.05, 1.05)
 
     # Price compatibility & tie-breaking
     price_std_floor: float = 0.45
@@ -162,12 +175,14 @@ class WeightsProfile:
     cold_neighbor_pop_prior_weight: float = 0.85
     cold_boost_on_cold_session: float = 1.25
 
-    # Stage 6.1 Base-Rate, Candidate Pool Quotas & Collaborative Graph Engines
-    candidate_pool_size: int = 76
-    guaranteed_top_sellers_in_pool: int = 16
-    pool_ease_quota: int = 6
-    pool_hop2_quota: int = 0
-    pool_svd_quota: int = 6
+    # Stage 6.2 Base-Rate, Candidate Pool Quotas & Collaborative Graph Engines
+    candidate_pool_size: int = 92
+    guaranteed_top_sellers_in_pool: int = 18
+    pool_ease_quota: int = 10
+    pool_hop2_quota: int = 8
+    pool_covisit_quota: int = 8
+    pool_svd_quota: int = 10
+    pool_subcat_top_quota: int = 10
     pool_cold_quota: int = 6
     use_sales_rank_base_rate: bool = True
     sales_rank_blend_weight: float = 0.95
@@ -186,7 +201,9 @@ class WeightsProfile:
     view_last_product_page_factor: float = 1.15
     view_base_bonus: float = 0.48
     recency_decay: float = 0.70
+    rv_temporal_half_life_min: float = 30.0
     slot1_category_match_bonus: float = 0.16
+    slot1_cat_only_ratio: float = 0.70
     same_cat_bonus_weight: float = 0.0593
     cart_active_score_bonus: float = 1.60
     cart_forgotten_score_bonus: float = 0.4808
@@ -212,7 +229,7 @@ class WeightsProfile:
     use_empirical_exam_curve: bool = True
     bandit_prior_strength: float = 20.0
     ml_max_blend_alpha: float = 0.45
-    ml_nonlin_blend_alpha: float = 0.35
+    ml_nonlin_blend_alpha: float = 0.50
     ml_min_positives: int = 25
     ml_l2_c: float = 1.2
     ml_nonlin_l2_alpha: float = 2.5
@@ -252,7 +269,7 @@ class WeightsProfile:
     v4_live_event_purchases: bool = True
 
     def prior_weights_array(self) -> np.ndarray:
-        """Return 40 prior weights ordered by reranker.FEATURE_NAMES."""
+        """Return 50 prior weights ordered by reranker.FEATURE_NAMES."""
         return np.array(
             [
                 self.w_seq_lift,
@@ -295,16 +312,26 @@ class WeightsProfile:
                 self.w_ease_x_price_compat,
                 self.w_cart_x_self_cvr,
                 self.w_cold_sim_x_pop,
+                self.w_rv_repeat_count_norm,
+                self.w_rv_temporal_recency,
+                self.w_subcat_pop_rank_score,
+                self.w_cat_pop_rank_score,
+                self.w_price_rel_subcat_compat,
+                self.w_is_viewed_cart_combo,
+                self.w_ease_x_same_subcat,
+                self.w_hop2_x_same_subcat,
+                self.w_svd_sess_x_subcat,
+                self.w_ctx_x_no_views,
             ],
             dtype=np.float64,
         )
 
     def min_prior_ratios_array(self) -> np.ndarray:
-        """Return 40 minimum prior anchoring ratios aligned with FEATURE_NAMES."""
+        """Return 50 minimum prior anchoring ratios aligned with FEATURE_NAMES."""
         vals = list(self.min_prior_ratios)
-        if len(vals) < len(_DEFAULT_40_MIN_RATIOS):
-            vals.extend(_DEFAULT_40_MIN_RATIOS[len(vals) :])
-        return np.asarray(vals[: len(_DEFAULT_40_MIN_RATIOS)], dtype=np.float64)
+        if len(vals) < len(_DEFAULT_50_MIN_RATIOS):
+            vals.extend(_DEFAULT_50_MIN_RATIOS[len(vals) :])
+        return np.asarray(vals[: len(_DEFAULT_50_MIN_RATIOS)], dtype=np.float64)
 
     def segment_multipliers(
         self, segment: str
@@ -419,7 +446,7 @@ class WeightsProfile:
 
 _BASE = WeightsProfile()
 
-_CHEAP_MIN_RATIOS = list(_DEFAULT_40_MIN_RATIOS)
+_CHEAP_MIN_RATIOS = list(_DEFAULT_50_MIN_RATIOS)
 _CHEAP_MIN_RATIOS[11] = 0.40
 
 PRESETS: dict[str, WeightsProfile] = {
@@ -485,7 +512,7 @@ PRESETS: dict[str, WeightsProfile] = {
     "calibrated_m3": replace(
         _BASE,
         profile_name="calibrated_m3",
-        description="Variant M3 calibrada 6.1: màxima conversió pura sense bloqueig de posicions ni penalització artificial de fons.",
+        description="Variant M3 calibrada 6.2: màxima conversió pura sense bloqueig de posicions ni penalització artificial de fons.",
         v4_cart_priority=False,
         cart_active_score_bonus=1.55,
         v3_bg_penalty=False,

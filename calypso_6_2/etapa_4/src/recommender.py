@@ -5,6 +5,7 @@ import math
 import time
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -67,35 +68,115 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     return default if math.isnan(res) else res
 
 
-def extract_recent_product_ids(raw_recent: Any) -> list[str]:
-    """Parse recent_views accepting either RawTree dict items or plain string IDs."""
-    out: list[str] = []
+def _parse_ts_ms(value: Any, default: float = 0.0) -> float:
+    """Parse epoch seconds/ms, datetime/Timestamp, or ISO datetime strings into epoch ms."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, (int, float)):
+        if math.isnan(value):
+            return default
+        v = float(value)
+        if v <= 0.0:
+            return default
+        return v * 1000.0 if v < 1e11 else v
+    ts_fn = getattr(value, "timestamp", None)
+    if callable(ts_fn):
+        try:
+            return float(ts_fn()) * 1000.0
+        except Exception:
+            return default
+    s = str(value).strip()
+    if not s:
+        return default
+    try:
+        # Handle pandas / ClickHouse nanosecond timestamps like '2026-11-11 07:31:49.549000000'
+        if "." in s:
+            head, frac = s.split(".", 1)
+            tz_tail = ""
+            for sep in ("+", "Z"):
+                if sep in frac:
+                    idx_sep = frac.index(sep)
+                    tz_tail = frac[idx_sep:]
+                    frac = frac[:idx_sep]
+                    break
+            s_norm = f"{head}.{frac[:6]}{tz_tail}".replace("Z", "+00:00")
+        else:
+            s_norm = s.replace("Z", "+00:00")
+        return datetime.fromisoformat(s_norm).timestamp() * 1000.0
+    except Exception:
+        return default
+
+
+def extract_recent_views_with_ts(raw_recent: Any) -> tuple[list[str], list[float]]:
+    """Extract ordered (product_id, view_ts_ms) lists from RawTree dicts or string IDs."""
+    out_ids: list[str] = []
+    out_ts: list[float] = []
     if raw_recent is None:
-        return out
+        return out_ids, out_ts
     try:
         if len(raw_recent) == 0:
-            return out
+            return out_ids, out_ts
     except TypeError:
         pass
     for item in raw_recent:
         if isinstance(item, Mapping):
             pid = item.get("product_id")
             if pid:
-                out.append(str(pid).strip())
+                out_ids.append(str(pid).strip())
+                out_ts.append(_parse_ts_ms(item.get("ts"), 0.0))
         elif item:
             s_pid = str(item).strip()
             if s_pid:
-                out.append(s_pid)
-    return out
+                out_ids.append(s_pid)
+                out_ts.append(0.0)
+    return out_ids, out_ts
 
 
-def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[str]]:
-    """Extract (user_id, is_new_user, region, device, page, recent_views) from dict or row."""
+def extract_recent_product_ids(raw_recent: Any) -> list[str]:
+    """Parse recent_views accepting either RawTree dict items or plain string IDs."""
+    ids, _ = extract_recent_views_with_ts(raw_recent)
+    return ids
+
+
+def _extract_req_ts_ms(request: Any, raw_recent: Any = None) -> float:
+    """Resolve request timestamp in epoch ms if available (0.0 when absent)."""
+    ts_raw = request.get("ts") if isinstance(request, Mapping) else getattr(request, "ts", None)
+    req_ms = _parse_ts_ms(ts_raw, 0.0)
+    if req_ms > 0.0:
+        return req_ms
+    if raw_recent is not None:
+        _, ts_list = extract_recent_views_with_ts(raw_recent)
+        valid = [t for t in ts_list if t > 0.0]
+        if valid:
+            return max(valid)
+    return 0.0
+
+
+def _resolve_now_ms(
+    snapshot: RecommenderSnapshotV4,
+    now_ms: float | None = None,
+    req_ts_ms: float | None = 0.0,
+) -> float:
+    """Choose coherent clock reference: explicit > request ts > snapshot built_at > wall clock."""
+    if now_ms is not None and now_ms > 0.0:
+        return float(now_ms)
+    if req_ts_ms is not None and req_ts_ms > 0.0:
+        return float(req_ts_ms)
+    if getattr(snapshot, "built_at", 0.0) > 0.0:
+        return float(snapshot.built_at) * 1000.0
+    return time.time() * 1000.0
+
+
+def _parse_request_fields_with_ts(
+    request: Any,
+) -> tuple[str, bool, str, str, str, list[str], list[float], float]:
+    """Extract (user_id, is_new_user, region, device, page, recent_views, view_ts_ms, req_ts_ms)."""
     if isinstance(request, Mapping):
         user_id = str(request.get("user_id") or "").strip()
         is_new_user = bool(request.get("is_new_user", False))
         ctx = request.get("context")
         raw_recent = request.get("recent_views")
+        raw_ts = request.get("ts")
         if isinstance(ctx, Mapping):
             region = str(ctx.get("region") or "").strip()
             device = str(ctx.get("device") or "").strip()
@@ -109,6 +190,7 @@ def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[
         is_new_user = bool(getattr(request, "is_new_user", False))
         ctx = getattr(request, "context", None)
         raw_recent = getattr(request, "recent_views", None)
+        raw_ts = getattr(request, "ts", None)
         if isinstance(ctx, Mapping):
             region = str(ctx.get("region") or "").strip()
             device = str(ctx.get("device") or "").strip()
@@ -118,7 +200,81 @@ def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[
             device = str(getattr(request, "device", "") or "").strip()
             page = str(getattr(request, "page", "") or "").strip()
 
-    return user_id, is_new_user, region, device, page, extract_recent_product_ids(raw_recent)
+    rv_ids, rv_ts = extract_recent_views_with_ts(raw_recent)
+    req_ts_ms = _parse_ts_ms(raw_ts, 0.0)
+    if req_ts_ms <= 0.0 and rv_ts:
+        valid_ts = [t for t in rv_ts if t > 0.0]
+        if valid_ts:
+            req_ts_ms = max(valid_ts)
+    return user_id, is_new_user, region, device, page, rv_ids, rv_ts, req_ts_ms
+
+
+def _parse_request_fields(request: Any) -> tuple[str, bool, str, str, str, list[str]]:
+    """Extract (user_id, is_new_user, region, device, page, recent_views) from dict or row."""
+    return _parse_request_fields_with_ts(request)[:6]
+
+
+def _build_category_indices(
+    products: Mapping[str, ProductInfo],
+    active_ids: frozenset[str],
+    global_pop_norm: Mapping[str, float],
+    live_trend_norm: Mapping[str, float],
+    *,
+    top_k: int = 24,
+) -> tuple[
+    dict[str, tuple[tuple[str, float], ...]],
+    dict[str, tuple[tuple[str, float], ...]],
+    dict[str, tuple[float, float]],
+    dict[str, float],
+    dict[str, float],
+]:
+    """Precompute intra-subcategory/category bestsellers, O(1) pop ranks, and subcat price stats."""
+    by_sc: dict[str, list[tuple[float, str]]] = defaultdict(list)
+    by_cat: dict[str, list[tuple[float, str]]] = defaultdict(list)
+    sc_prices: dict[str, list[float]] = defaultdict(list)
+
+    for pid in active_ids:
+        info = products.get(pid)
+        if info is None:
+            continue
+        score = global_pop_norm.get(pid, 0.0) + 0.45 * live_trend_norm.get(pid, 0.0)
+        if info.subcategory:
+            by_sc[info.subcategory].append((score, pid))
+            if info.price_eur > 0.0:
+                sc_prices[info.subcategory].append(math.log1p(info.price_eur))
+        if info.category:
+            by_cat[info.category].append((score, pid))
+
+    subcat_top: dict[str, tuple[tuple[str, float], ...]] = {}
+    item_subcat_pop: dict[str, float] = {}
+    for sc, items in by_sc.items():
+        items.sort(reverse=True)
+        max_s = items[0][0] if items else 0.0
+        denom = max(max_s, 1e-6)
+        subcat_top[sc] = tuple((pid, sc_v / denom) for sc_v, pid in items[:top_k] if sc_v > 0.0)
+        for sc_v, pid in items:
+            if sc_v > 0.0:
+                item_subcat_pop[pid] = sc_v / denom
+
+    cat_top: dict[str, tuple[tuple[str, float], ...]] = {}
+    item_cat_pop: dict[str, float] = {}
+    for cat, items in by_cat.items():
+        items.sort(reverse=True)
+        max_s = items[0][0] if items else 0.0
+        denom = max(max_s, 1e-6)
+        cat_top[cat] = tuple((pid, c_v / denom) for c_v, pid in items[:top_k] if c_v > 0.0)
+        for c_v, pid in items:
+            if c_v > 0.0:
+                item_cat_pop[pid] = c_v / denom
+
+    subcat_price_stats: dict[str, tuple[float, float]] = {}
+    for sc, lps in sc_prices.items():
+        n_p = len(lps)
+        mean_lp = sum(lps) / n_p
+        var = sum((x - mean_lp) ** 2 for x in lps) / max(n_p, 1)
+        subcat_price_stats[sc] = (mean_lp, max(math.sqrt(var), 0.35))
+
+    return subcat_top, cat_top, subcat_price_stats, item_subcat_pop, item_cat_pop
 
 
 def _build_products(
@@ -314,6 +470,8 @@ def _prepare_request_signals(
     price_std_floor: float = 0.45,
     weights_profile: WeightsProfile | None = None,
     now_ms: float | None = None,
+    view_ts_list: Sequence[float] | None = None,
+    req_ts_ms: float = 0.0,
 ) -> tuple[
     dict[str, float],
     dict[str, float],
@@ -333,6 +491,7 @@ def _prepare_request_signals(
     user_id, is_new_user, region, device, page, recent_views = parsed
     wp = weights_profile if weights_profile is not None else snapshot.weights_profile
     page_l = str(page or "").strip().lower()
+    cur_ms = _resolve_now_ms(snapshot, now_ms, req_ts_ms)
 
     seq_scores: dict[str, float] = {}
     ease_scores: dict[str, float] = {}
@@ -342,13 +501,17 @@ def _prepare_request_signals(
     rev_graft_scores: dict[str, float] = {}
     self_view_scores: dict[str, float] = {}
     view_recency_map: dict[str, float] = {}
+    rv_temporal_map: dict[str, float] = {}
+    rv_counts: dict[str, int] = {}
 
     decay = wp.recency_decay if wp is not None else recency_decay
     svd_decay = wp.svd_recency_decay if wp is not None else 0.68
     last_prod_factor = wp.view_last_product_page_factor if wp is not None else 1.15
     view_base = wp.view_base_bonus if wp is not None else 0.0
+    rv_half_life_min = max(wp.rv_temporal_half_life_min if wp is not None else 30.0, 2.0)
 
     rv_subcat_acc: dict[str, float] = defaultdict(float)
+    rv_cat_acc: dict[str, float] = defaultdict(float)
     rv_brand_acc: dict[str, float] = defaultdict(float)
     rv_wt_sum = 0.0
     rv_lp_sum = 0.0
@@ -359,32 +522,52 @@ def _prepare_request_signals(
     hop2_map = snapshot.hop2_transitions
     cov_map = snapshot.covisit_neighbors
 
+    n_rv = len(recent_views)
+    has_rv_ts = view_ts_list is not None and len(view_ts_list) == n_rv
     for rev_idx, seen_pid in enumerate(reversed(recent_views)):
         w_rec = decay**rev_idx
+        rv_counts[seen_pid] = rv_counts.get(seen_pid, 0) + 1
         sess_svd_items.append((seen_pid, svd_decay**rev_idx))
         if seen_pid not in view_recency_map:
             view_recency_map[seen_pid] = w_rec
+
+        if has_rv_ts and cur_ms > 0.0:
+            v_ts = float(view_ts_list[n_rv - 1 - rev_idx])
+            if v_ts > 0.0:
+                dt_min = max(cur_ms - v_ts, 0.0) / 60_000.0
+                t_rec = math.exp(-0.693 * dt_min / rv_half_life_min)
+                if t_rec > rv_temporal_map.get(seen_pid, 0.0):
+                    rv_temporal_map[seen_pid] = t_rec
+        elif seen_pid not in rv_temporal_map:
+            rv_temporal_map[seen_pid] = w_rec
 
         s_info = snapshot.products.get(seen_pid)
         if s_info is not None:
             rv_wt_sum += w_rec
             if s_info.subcategory:
                 rv_subcat_acc[s_info.subcategory] += w_rec
+            if s_info.category:
+                rv_cat_acc[s_info.category] += w_rec
             if s_info.brand:
                 rv_brand_acc[s_info.brand] += w_rec
             if s_info.price_eur > 0.0:
                 rv_lp_sum += w_rec * math.log1p(s_info.price_eur)
                 rv_lp_wt += w_rec
 
-        if seen_pid in snapshot.active_ids and seen_pid not in self_view_scores:
+        if seen_pid in snapshot.active_ids:
             page_factor = last_prod_factor if (page_l == "product" and rev_idx == 0) else 1.0
             base_cvr = snapshot.self_cvr.get(seen_pid, 0.02)
             if view_base > 0.0:
                 pop_f = 0.45 + 0.55 * snapshot.global_pop_norm.get(seen_pid, 0.3)
                 cvr_f = view_base * 0.20 + (1.0 - view_base) * base_cvr
-                self_view_scores[seen_pid] = cvr_f * pop_f * w_rec * page_factor
+                step_sv = cvr_f * pop_f * w_rec * page_factor
             else:
-                self_view_scores[seen_pid] = base_cvr * w_rec * page_factor
+                step_sv = base_cvr * w_rec * page_factor
+            if seen_pid not in self_view_scores:
+                self_view_scores[seen_pid] = step_sv
+            else:
+                # Re-viewing the exact same item in one session signals high purchase intent
+                self_view_scores[seen_pid] = min(0.24, self_view_scores[seen_pid] + 0.35 * step_sv)
 
         trans_nbs = snapshot.transitions.get(seen_pid)
         if trans_nbs:
@@ -426,6 +609,13 @@ def _prepare_request_signals(
                 cand_r = w_rec * sim
                 if cand_r > rev_graft_scores.get(new_pid, 0.0):
                     rev_graft_scores[new_pid] = cand_r
+
+    denom_rep = math.log(4.0)
+    rv_repeat_norm_map: dict[str, float] = {
+        pid: min(1.0, math.log1p(cnt - 1) / denom_rep)
+        for pid, cnt in rv_counts.items()
+        if cnt > 1
+    }
 
     if rv_wt_sum > 0.0:
         rv_subcat_frac = {k: v / rv_wt_sum for k, v in rv_subcat_acc.items()}
@@ -469,12 +659,14 @@ def _prepare_request_signals(
     if user_id and not is_new_user:
         u_carts = snapshot.user_carts.get(user_id)
         if u_carts:
-            cur_ms = time.time() * 1000.0 if now_ms is None else now_ms
             active_ms = (wp.v4_cart_active_minutes if wp is not None else 30.0) * 60_000.0
             max_forgot_ms = (wp.v4_forgotten_max_days if wp is not None else 30.0) * 86_400_000.0
             half_life_min = max(wp.cart_recency_half_life_min if wp is not None else 45.0, 5.0)
             for c_pid, cart_ts in u_carts:
-                age_ms = max(cur_ms - cart_ts, 0.0)
+                raw_age_ms = cur_ms - cart_ts
+                if raw_age_ms < -60_000.0:
+                    continue
+                age_ms = max(raw_age_ms, 0.0)
                 if age_ms <= active_ms:
                     user_svd_items.append((c_pid, 1.15))
                     age_min = age_ms / 60_000.0
@@ -511,12 +703,16 @@ def _prepare_request_signals(
     extra_signals = {
         "anchor_cat": anchor_cat,
         "page": page_l,
+        "no_views": not bool(recent_views),
         "last_viewed_pid": last_viewed_pid,
         "ease_scores": ease_scores,
         "hop2_scores": hop2_scores,
         "covisit_scores": covisit_scores,
         "view_recency_map": view_recency_map,
+        "rv_temporal_map": rv_temporal_map,
+        "rv_repeat_norm_map": rv_repeat_norm_map,
         "rv_subcat_frac": rv_subcat_frac,
+        "rv_cat_acc": rv_cat_acc,
         "rv_brand_frac": rv_brand_frac,
         "mean_rv_lp": mean_rv_lp,
         "svd_sess_vec": svd_sess_vec,
@@ -552,8 +748,10 @@ def _extract_feature_matrix(
     weights_profile: WeightsProfile | None = None,
     now_ms: float | None = None,
     return_aux: bool = False,
+    view_ts_list: Sequence[float] | None = None,
+    req_ts_ms: float = 0.0,
 ) -> Any:
-    """Vectorized 40-feature builder shared identically by training and Calypso 6.1 FastLoop."""
+    """Vectorized 50-feature builder shared identically by training and Calypso 6.2 FastLoop."""
     n = len(candidate_ids)
     if n == 0:
         empty_X = np.empty((0, NUM_FEATURES), dtype=np.float64)
@@ -564,7 +762,16 @@ def _extract_feature_matrix(
     z2_clip = wp.price_z2_clip if wp is not None else 6.0
     cheap_asym = wp.price_cheap_asymmetry if wp is not None else 0.0
 
-    p = parsed if parsed is not None else _parse_request_fields(request)
+    if parsed is None:
+        full_p = _parse_request_fields_with_ts(request)
+        p = full_p[:6]
+        if view_ts_list is None:
+            view_ts_list = full_p[6]
+        if req_ts_ms <= 0.0:
+            req_ts_ms = full_p[7]
+    else:
+        p = parsed
+
     (
         seq_scores,
         self_view_scores,
@@ -585,15 +792,20 @@ def _extract_feature_matrix(
         price_std_floor=std_floor,
         weights_profile=wp,
         now_ms=now_ms,
+        view_ts_list=view_ts_list,
+        req_ts_ms=req_ts_ms,
     )
 
     page_l: str = extra_signals["page"]
+    no_views_flag: bool = bool(extra_signals["no_views"])
     anchor_cat: str = extra_signals["anchor_cat"]
     last_viewed_pid: str = extra_signals["last_viewed_pid"]
     ease_scores: dict[str, float] = extra_signals["ease_scores"]
     hop2_scores: dict[str, float] = extra_signals["hop2_scores"]
     covisit_scores: dict[str, float] = extra_signals["covisit_scores"]
     view_recency_map: dict[str, float] = extra_signals["view_recency_map"]
+    rv_temporal_map: dict[str, float] = extra_signals["rv_temporal_map"]
+    rv_repeat_norm_map: dict[str, float] = extra_signals["rv_repeat_norm_map"]
     rv_subcat_frac: dict[str, float] = extra_signals["rv_subcat_frac"]
     rv_brand_frac: dict[str, float] = extra_signals["rv_brand_frac"]
     mean_rv_lp: float = extra_signals["mean_rv_lp"]
@@ -660,6 +872,8 @@ def _extract_feature_matrix(
     has_hop2 = bool(hop2_scores)
     has_cov = bool(covisit_scores)
     has_vr = bool(view_recency_map)
+    has_rvt = bool(rv_temporal_map)
+    has_rvrep = bool(rv_repeat_norm_map)
     has_ca = bool(cart_active_decay_map)
     has_cf = bool(cart_forgotten_decay_map)
     has_rl = bool(rec_log_norm_map)
@@ -671,6 +885,10 @@ def _extract_feature_matrix(
     has_anchor_br = bool(anchor_brand)
     inv_std2 = 1.0 / (2.0 * std_lp * std_lp) if has_price_hist else 0.0
 
+    item_sc_pop_get = snapshot.item_subcat_pop.get
+    item_cat_pop_get = snapshot.item_cat_pop.get
+    sc_price_get = snapshot.subcat_price_stats.get
+
     seq_get = seq_scores.get
     sv_get = self_view_scores.get
     int_get = intent_scores.get
@@ -681,6 +899,8 @@ def _extract_feature_matrix(
     hop2_get = hop2_scores.get
     cov_get = covisit_scores.get
     vr_get = view_recency_map.get
+    rvt_get = rv_temporal_map.get
+    rvrep_get = rv_repeat_norm_map.get
     ca_get = cart_active_decay_map.get
     cf_get = cart_forgotten_decay_map.get
     rl_get = rec_log_norm_map.get
@@ -707,8 +927,9 @@ def _extract_feature_matrix(
         int_c = int_get(pid, 0.0) if has_int else 0.0
         if int_c:
             r[2] = int_c
-        if has_ctx:
-            r[5] = ctx_get(pid, 0.0)
+        ctx_c = ctx_get(pid, 0.0) if has_ctx else 0.0
+        if ctx_c:
+            r[5] = ctx_c
         rev_c = rev_get(pid, 0.0) if has_rev else 0.0
         if rev_c:
             r[9] = rev_c
@@ -723,7 +944,10 @@ def _extract_feature_matrix(
             ease_c = 0.0
         if has_hop2:
             hv = hop2_get(pid, 0.0)
-            r[15] = hv if hv < 1.5 else 1.5
+            hop2_c = hv if hv < 1.5 else 1.5
+            r[15] = hop2_c
+        else:
+            hop2_c = 0.0
         if has_cov:
             cv_ = cov_get(pid, 0.0)
             r[16] = cv_ if cv_ < 1.5 else 1.5
@@ -733,8 +957,9 @@ def _extract_feature_matrix(
         r[18] = svd_u
         if pid == last_viewed_pid:
             r[19] = 1.0
-        if has_vr:
-            r[20] = vr_get(pid, 0.0)
+        vr_val = vr_get(pid, 0.0) if has_vr else 0.0
+        if vr_val:
+            r[20] = vr_val
 
         act_cart_d = ca_get(pid, 0.0) if has_ca else 0.0
         fgt_cart_d = cf_get(pid, 0.0) if has_cf else 0.0
@@ -790,6 +1015,13 @@ def _extract_feature_matrix(
             if mean_rv_lp > 0.0 and lp_norm > 0.0:
                 r[27] = math.exp(-abs(lp_norm * max_lp - mean_rv_lp))
 
+            if sc and lp_norm > 0.0:
+                scp = sc_price_get(sc)
+                if scp is not None:
+                    sc_mu, sc_sd = scp
+                    sc_z = ((lp_norm * max_lp) - sc_mu) / sc_sd
+                    r[44] = math.exp(-0.5 * min(sc_z * sc_z, z2_clip))
+
             if return_aux:
                 cand_cats[idx] = p_cat
                 cand_subcats[idx] = sc
@@ -834,6 +1066,22 @@ def _extract_feature_matrix(
             r[38] = max_cart_d * max(sv_c, scvr_get(pid, 0.02) * 4.0)
         if rev_c > 0.0 or fwd_c > 0.0:
             r[39] = (rev_c if rev_c > fwd_c else fwd_c) * gpop
+
+        # Calypso 6.2 features (indices 40..49)
+        if has_rvrep:
+            r[40] = rvrep_get(pid, 0.0)
+        if has_rvt:
+            r[41] = rvt_get(pid, 0.0)
+        r[42] = item_sc_pop_get(pid, 0.0)
+        r[43] = item_cat_pop_get(pid, 0.0)
+        if vr_val > 0.0 and act_cart_d > 0.0:
+            r[45] = vr_val * act_cart_d
+        if same_sc_f > 0.5:
+            r[46] = ease_c
+            r[47] = hop2_c
+            r[48] = svd_s
+        if no_views_flag and ctx_c > 0.0:
+            r[49] = ctx_c
 
     X = np.asarray(rows, dtype=np.float64)
     if not return_aux:
@@ -1230,6 +1478,19 @@ def build_snapshot_v4_from_records(
         min_prior_ratios=wp.min_prior_ratios_array(),
         max_prior_multiplier=wp.max_prior_multiplier,
     )
+    (
+        subcat_top_items,
+        cat_top_items,
+        subcat_price_stats,
+        item_subcat_pop,
+        item_cat_pop,
+    ) = _build_category_indices(
+        products,
+        active_ids,
+        global_pop_norm,
+        live_trend_norm,
+        top_k=24,
+    )
     snapshot = RecommenderSnapshotV4(
         version=version,
         built_at=time.time(),
@@ -1261,6 +1522,11 @@ def build_snapshot_v4_from_records(
         covisit_neighbors=covisit_neighbors,
         svd_item_vectors=svd_mat,
         svd_pid_to_idx=svd_pid_idx,
+        subcat_top_items=subcat_top_items,
+        cat_top_items=cat_top_items,
+        subcat_price_stats=subcat_price_stats,
+        item_subcat_pop=item_subcat_pop,
+        item_cat_pop=item_cat_pop,
     )
 
     # Precompute static lookup table once before IPS dataset extraction
@@ -1305,7 +1571,7 @@ def build_snapshot_v4_from_records(
             combined_logs,
             lambda req, cands: _extract_feature_matrix(snapshot, req, cands, weights_profile=wp),
             exam_power=wp.bandit_exam_power,
-            max_sessions=4000,
+            max_sessions=12000,
             purchase_weight=wp.ips_purchase_weight,
             click_weight=wp.ips_click_weight,
             use_empirical_exam_curve=wp.use_empirical_exam_curve,
@@ -1387,13 +1653,15 @@ class CalypsoRecommenderV4:
         uid, is_new_user, region, device, page, recent_views = parsed
         wp = snapshot.weights_profile
         pool_limit = wp.candidate_pool_size if wp is not None else self.config.candidate_pool_size
-        guaranteed_top = wp.guaranteed_top_sellers_in_pool if wp is not None else 22
-        ease_quota = wp.pool_ease_quota if wp is not None else 24
-        hop2_quota = wp.pool_hop2_quota if wp is not None else 14
-        svd_quota = wp.pool_svd_quota if wp is not None else 18
-        cold_quota = wp.pool_cold_quota if wp is not None else 10
+        guaranteed_top = wp.guaranteed_top_sellers_in_pool if wp is not None else 18
+        ease_quota = wp.pool_ease_quota if wp is not None else 10
+        hop2_quota = wp.pool_hop2_quota if wp is not None else 10
+        cov_quota = wp.pool_covisit_quota if wp is not None else 8
+        svd_quota = wp.pool_svd_quota if wp is not None else 10
+        subcat_quota = wp.pool_subcat_top_quota if wp is not None else 10
+        cold_quota = wp.pool_cold_quota if wp is not None else 6
         max_forgot_ms = (wp.v4_forgotten_max_days if wp is not None else 30.0) * 86_400_000.0
-        cur_ms = time.time() * 1000.0 if now_ms is None else now_ms
+        cur_ms = _resolve_now_ms(snapshot, now_ms, None)
 
         seen: set[str] = set()
         candidates: list[str] = []
@@ -1419,84 +1687,91 @@ class CalypsoRecommenderV4:
         fresh_cart_pids: list[str] = []
         if uid and not is_new_user:
             for pid, cart_ts in snapshot.user_carts.get(uid, ()):
-                if cur_ms - cart_ts <= max_forgot_ms:
+                if -60_000.0 <= cur_ms - cart_ts <= max_forgot_ms:
                     fresh_cart_pids.append(pid)
             for pid in fresh_cart_pids[:8]:
                 _add(pid)
             for pid, _ in snapshot.user_recurrent.get(uid, ())[:6]:
                 _add(pid)
 
-        # 3. Direct sequential lift transitions & cold neighbors
-        reserve_tail = min(pool_limit // 2, guaranteed_top + ease_quota // 2 + svd_quota // 2)
-        trans_cap = max(pool_limit - reserve_tail, 48)
-        for seen_pid in reversed(recent_views):
+        # Reserve tail strictly so ALL guaranteed_top bestsellers fit before slot-fillers
+        pre_top_cap = max(pool_limit - guaranteed_top, 44)
+        reserve_tail = min(
+            pool_limit // 2,
+            guaranteed_top + ease_quota // 2 + hop2_quota // 2 + svd_quota // 2 + subcat_quota // 2,
+        )
+        trans_cap = min(pre_top_cap, max(pool_limit - reserve_tail, 36))
+        for v_idx, seen_pid in enumerate(reversed(recent_views)):
             if len(candidates) >= trans_cap:
                 break
+            per_view_cap = 20 if v_idx == 0 else 10
+            added_view = 0
             for dst_pid, _ in snapshot.transitions.get(seen_pid, ()):
-                if len(candidates) >= trans_cap:
+                if len(candidates) >= trans_cap or added_view >= per_view_cap:
                     break
-                _add(dst_pid)
-            for new_pid, _ in snapshot.reverse_cold_neighbors.get(seen_pid, ()):
+                if dst_pid not in seen and dst_pid in active_ids and dst_pid not in excluded_ids:
+                    _add(dst_pid)
+                    added_view += 1
+            for new_pid, _ in snapshot.reverse_cold_neighbors.get(seen_pid, ())[:6]:
                 if len(candidates) >= trans_cap:
                     break
                 _add(new_pid)
-            for warm_nb, _ in snapshot.cold_neighbors.get(seen_pid, ()):
+            for warm_nb, _ in snapshot.cold_neighbors.get(seen_pid, ())[:6]:
                 if len(candidates) >= trans_cap:
                     break
                 _add(warm_nb)
-                for dst_pid, _ in snapshot.transitions.get(warm_nb, ())[:4]:
+                for dst_pid, _ in snapshot.transitions.get(warm_nb, ())[:3]:
                     if len(candidates) >= trans_cap:
                         break
                     _add(dst_pid)
 
         # 4. Pure EASE + 2-hop diffusion + pre-CUT co-visitation channels
-        if ease_quota > 0 and snapshot.ease_neighbors and recent_views:
+        if ease_quota > 0 and snapshot.ease_neighbors and recent_views and len(candidates) < pre_top_cap:
             added_ease = 0
             for seen_pid in reversed(recent_views):
                 for dst_pid, _ in snapshot.ease_neighbors.get(seen_pid, ()):
-                    if dst_pid not in seen and dst_pid in snapshot.active_ids and dst_pid not in excluded_ids:
-                        if not _add(dst_pid):
-                            return candidates
+                    if len(candidates) >= pre_top_cap or added_ease >= ease_quota:
+                        break
+                    if dst_pid not in seen and dst_pid in active_ids and dst_pid not in excluded_ids:
+                        _add(dst_pid)
                         added_ease += 1
-                        if added_ease >= ease_quota:
-                            break
-                if added_ease >= ease_quota:
+                if len(candidates) >= pre_top_cap or added_ease >= ease_quota:
                     break
 
-        if hop2_quota > 0 and snapshot.hop2_transitions and recent_views:
+        if hop2_quota > 0 and snapshot.hop2_transitions and recent_views and len(candidates) < pre_top_cap:
             added_h2 = 0
-            for seen_pid in reversed(recent_views[:3]):
+            for seen_pid in reversed(recent_views[-4:]):
                 for dst_pid, _ in snapshot.hop2_transitions.get(seen_pid, ()):
-                    if dst_pid not in seen and dst_pid in snapshot.active_ids and dst_pid not in excluded_ids:
-                        if not _add(dst_pid):
-                            return candidates
+                    if len(candidates) >= pre_top_cap or added_h2 >= hop2_quota:
+                        break
+                    if dst_pid not in seen and dst_pid in active_ids and dst_pid not in excluded_ids:
+                        _add(dst_pid)
                         added_h2 += 1
-                        if added_h2 >= hop2_quota:
-                            break
-                if added_h2 >= hop2_quota:
+                if len(candidates) >= pre_top_cap or added_h2 >= hop2_quota:
                     break
 
-        if snapshot.covisit_neighbors and recent_views:
+        if cov_quota > 0 and snapshot.covisit_neighbors and recent_views and len(candidates) < pre_top_cap:
             added_cov = 0
-            for seen_pid in reversed(recent_views[:2]):
+            for seen_pid in reversed(recent_views[-3:]):
                 for dst_pid, _ in snapshot.covisit_neighbors.get(seen_pid, ()):
-                    if dst_pid not in seen and dst_pid in snapshot.active_ids and dst_pid not in excluded_ids:
-                        if not _add(dst_pid):
-                            return candidates
+                    if len(candidates) >= pre_top_cap or added_cov >= cov_quota:
+                        break
+                    if dst_pid not in seen and dst_pid in active_ids and dst_pid not in excluded_ids:
+                        _add(dst_pid)
                         added_cov += 1
-                        if added_cov >= 10:
-                            break
-                if added_cov >= 10:
+                if len(candidates) >= pre_top_cap or added_cov >= cov_quota:
                     break
 
         # 5. User intent items
         profile = None if is_new_user else snapshot.user_profiles.get(uid)
-        if profile is not None:
+        if profile is not None and len(candidates) < pre_top_cap:
             for pid, _ in profile.intent_items:
+                if len(candidates) >= pre_top_cap:
+                    break
                 _add(pid)
 
         # 6. Fast collaborative SVD retrieval (single BLAS matmul)
-        if svd_quota > 0 and snapshot.svd_pid_to_idx and snapshot.svd_item_vectors is not None:
+        if svd_quota > 0 and snapshot.svd_pid_to_idx and snapshot.svd_item_vectors is not None and len(candidates) < pre_top_cap:
             q_items: list[tuple[str, float]] = [(p, 0.7 ** i) for i, p in enumerate(reversed(recent_views))]
             if profile is not None:
                 q_items.extend((p, sc * 0.7) for p, sc in profile.intent_items[:6])
@@ -1512,19 +1787,62 @@ class CalypsoRecommenderV4:
                     top_idx = top_idx[np.argsort(-dots[top_idx])]
                     added_svd = 0
                     for i_svd in top_idx:
+                        if added_svd >= svd_quota or len(candidates) >= pre_top_cap:
+                            break
                         cand_p = pid_list[int(i_svd)]
-                        if cand_p not in seen and cand_p in snapshot.active_ids and cand_p not in excluded_ids:
+                        if cand_p not in seen and cand_p in active_ids and cand_p not in excluded_ids:
                             _add(cand_p)
                             added_svd += 1
-                            if added_svd >= svd_quota or len(candidates) >= pool_limit:
-                                break
 
-        # 7. Guaranteed Top-N bestsellers
+        # 7. Intra-subcategory & macro-category bestsellers for session/profile exploration
+        if subcat_quota > 0 and (snapshot.subcat_top_items or snapshot.cat_top_items) and len(candidates) < pre_top_cap:
+            explored_subcats: list[str] = []
+            explored_cats: list[str] = []
+            for seen_pid in reversed(recent_views[-4:]):
+                p_info = snapshot.products.get(seen_pid)
+                if p_info is None:
+                    continue
+                if p_info.subcategory and p_info.subcategory not in explored_subcats:
+                    explored_subcats.append(p_info.subcategory)
+                if p_info.category and p_info.category not in explored_cats:
+                    explored_cats.append(p_info.category)
+            if not explored_subcats and profile is not None and profile.subcat_brand_affinity:
+                top_sc_pairs = sorted(
+                    ((sc, sc_v) for (sc, _br), sc_v in profile.subcat_brand_affinity.items() if sc),
+                    key=lambda kv: -kv[1],
+                )
+                for sc, _ in top_sc_pairs:
+                    if sc not in explored_subcats:
+                        explored_subcats.append(sc)
+                    if len(explored_subcats) >= 3:
+                        break
+            added_subcat = 0
+            for sc in explored_subcats[:3]:
+                for pid, _ in snapshot.subcat_top_items.get(sc, ()):
+                    if added_subcat >= subcat_quota or len(candidates) >= pre_top_cap:
+                        break
+                    if pid not in seen and pid in active_ids and pid not in excluded_ids:
+                        _add(pid)
+                        added_subcat += 1
+                if added_subcat >= subcat_quota or len(candidates) >= pre_top_cap:
+                    break
+            if added_subcat < subcat_quota and explored_cats and len(candidates) < pre_top_cap:
+                for mc in explored_cats[:2]:
+                    for pid, _ in snapshot.cat_top_items.get(mc, ()):
+                        if added_subcat >= subcat_quota or len(candidates) >= pre_top_cap:
+                            break
+                        if pid not in seen and pid in active_ids and pid not in excluded_ids:
+                            _add(pid)
+                            added_subcat += 1
+                    if added_subcat >= subcat_quota or len(candidates) >= pre_top_cap:
+                        break
+
+        # 8. Guaranteed Top-N bestsellers
         for pid in snapshot.fallback_ranked[:guaranteed_top]:
             if not _add(pid):
                 break
 
-        # 8. Contextual buckets & new items
+        # 9. Contextual buckets & ranked new items
         if len(candidates) < pool_limit:
             for pid, _ in snapshot.ctx_3.get((region, device, page), ())[:18]:
                 if len(candidates) >= pool_limit:
@@ -1541,17 +1859,36 @@ class CalypsoRecommenderV4:
                     break
                 _add(pid)
 
-        if snapshot.new_product_ids and cold_quota > 0:
+        if snapshot.new_product_ids and cold_quota > 0 and len(candidates) < pool_limit:
             anchor_subcat = ""
+            anchor_cat = ""
             if recent_views and recent_views[-1] in snapshot.products:
-                anchor_subcat = snapshot.products[recent_views[-1]].subcategory
-            added_new = 0
+                anchor_info = snapshot.products[recent_views[-1]]
+                anchor_subcat = anchor_info.subcategory
+                anchor_cat = anchor_info.category
+            scored_cold: list[tuple[int, float, str]] = []
             for new_pid in snapshot.new_product_ids:
+                if new_pid in seen or new_pid not in active_ids or new_pid in excluded_ids:
+                    continue
+                info = snapshot.products.get(new_pid)
+                if info is None:
+                    continue
+                if anchor_subcat and info.subcategory == anchor_subcat:
+                    tier = 2
+                elif anchor_cat and info.category == anchor_cat:
+                    tier = 1
+                elif not anchor_subcat and not anchor_cat:
+                    tier = 1
+                else:
+                    continue
+                pop_t = snapshot.global_pop_norm.get(new_pid, 0.0) + snapshot.live_trend_norm.get(new_pid, 0.0)
+                scored_cold.append((tier, pop_t, new_pid))
+            scored_cold.sort(key=lambda t: (-t[0], -t[1], t[2]))
+            added_new = 0
+            for _, _, new_pid in scored_cold:
                 if added_new >= cold_quota or len(candidates) >= pool_limit:
                     break
-                info = snapshot.products.get(new_pid)
-                if info is not None and (not anchor_subcat or info.subcategory == anchor_subcat):
-                    _add(new_pid)
+                if _add(new_pid):
                     added_new += 1
 
         for pid in snapshot.fallback_ranked:
@@ -1575,8 +1912,10 @@ class CalypsoRecommenderV4:
         Con todos los interruptores CALYPSO_V4_* a 0 reproduce exactamente 3.1b.
         """
         cfg = snapshot.config_override if snapshot.config_override is not None else self.config
-        parsed = _parse_request_fields(request)
-        uid, is_new_user = parsed[0], parsed[1]
+        full_parsed = _parse_request_fields_with_ts(request)
+        uid, is_new_user, region, device, page, recent_views, view_ts_list, req_ts_ms = full_parsed
+        parsed = (uid, is_new_user, region, device, page, recent_views)
+        eff_now_ms = _resolve_now_ms(snapshot, now_ms, req_ts_ms)
 
         profile = None if is_new_user else snapshot.user_profiles.get(uid)
         bought_hist = profile.bought_products if profile is not None else frozenset()
@@ -1592,7 +1931,7 @@ class CalypsoRecommenderV4:
                 cart_active, cart_forgotten = split_cart_items(
                     user_cart,
                     snapshot.active_ids,
-                    time.time() * 1000.0 if now_ms is None else now_ms,
+                    eff_now_ms,
                     use_active=cfg.v4_cart_priority,
                     use_forgotten=cfg.v4_forgotten_cart,
                     active_minutes=cfg.v4_cart_active_minutes,
@@ -1624,7 +1963,16 @@ class CalypsoRecommenderV4:
         k_model = k - len(pinned)
         core_excluded = excluded_ids | frozenset(pinned) if pinned else excluded_ids
         block = (
-            self._recommend_core(parsed, snapshot, k_model, core_excluded, _cfg=cfg, now_ms=now_ms)
+            self._recommend_core(
+                parsed,
+                snapshot,
+                k_model,
+                core_excluded,
+                _cfg=cfg,
+                now_ms=eff_now_ms,
+                view_ts_list=view_ts_list,
+                req_ts_ms=req_ts_ms,
+            )
             if k_model > 0
             else []
         )
@@ -1655,17 +2003,20 @@ class CalypsoRecommenderV4:
         *,
         _cfg: ConfigV4 | None = None,
         now_ms: float | None = None,
+        view_ts_list: list[float | None] | None = None,
+        req_ts_ms: float | None = None,
     ) -> list[str]:
-        """Calypso 6.1 Hybrid Scoring: 40-feature Linear IPS + Distilled MLP + Page Matrices."""
+        """Calypso 6.2 Hybrid Scoring: 50-feature Linear IPS + IPS-Distilled MLP + Page Matrices."""
         cfg = _cfg if _cfg is not None else self.config
         wp = snapshot.weights_profile if snapshot.weights_profile is not None else cfg.load_weights_profile()
         uid, is_new_user, _, _, page, recent_views = parsed
+        eff_now_ms = _resolve_now_ms(snapshot, now_ms, req_ts_ms)
         has_session_intent = bool(recent_views)
         is_cold_session = is_new_user or any(
             pid in snapshot.new_product_ids for pid in recent_views
         )
 
-        candidates = self._gather_candidates(parsed, snapshot, excluded_ids, now_ms=now_ms)
+        candidates = self._gather_candidates(parsed, snapshot, excluded_ids, now_ms=eff_now_ms)
         if not candidates:
             return ensure_valid_submission(
                 (),
@@ -1692,7 +2043,9 @@ class CalypsoRecommenderV4:
             candidates,
             parsed=parsed,
             weights_profile=wp,
-            now_ms=now_ms,
+            now_ms=eff_now_ms,
+            view_ts_list=view_ts_list,
+            req_ts_ms=req_ts_ms,
             return_aux=True,
         )
 
@@ -1762,6 +2115,16 @@ class CalypsoRecommenderV4:
         w_req[23] *= p_rec
         w_req[25] *= p_seq
         w_req[26] *= p_seq
+        if len(w_req) >= 50:
+            w_req[40] *= p_seq
+            w_req[41] *= p_seq
+            w_req[42] *= p_pop
+            w_req[43] *= p_pop
+            w_req[45] *= p_cart
+            w_req[46] *= m_es * p_es
+            w_req[47] *= m_es * p_es
+            w_req[48] *= m_es * p_es
+            w_req[49] *= m_ctx * p_pop
 
         lin_vec = X @ w_req
         nl_vec = ranker.score_nonlin_residuals(
@@ -1834,6 +2197,7 @@ class CalypsoRecommenderV4:
         cold_gate = wp.cold_explore_start_slot_cold if is_cold_session else wp.cold_explore_start_slot_warm
         max_cold_warm = wp.max_cold_explore_in_warm
         slot1_cat_bonus = wp.slot1_category_match_bonus
+        slot1_cat_only_bonus = slot1_cat_bonus * max(0.0, wp.slot1_cat_only_ratio)
         tie_eps = wp.tie_break_eps
         new_picked_count = 0
         tie_mode = wp.tie_break_mode
@@ -1870,12 +2234,10 @@ class CalypsoRecommenderV4:
                 if apply_cart_top3_pen and cand_in_active_cart[idx]:
                     val -= cart_top3_pen
                 if apply_slot1_cat:
-                    if (
-                        cand_viewed[idx]
-                        or (anchor_subcat and cand_subcats[idx] == anchor_subcat)
-                        or (anchor_cat and cand_cats[idx] == anchor_cat)
-                    ):
+                    if cand_viewed[idx] or (anchor_subcat and cand_subcats[idx] == anchor_subcat):
                         val += slot1_cat_bonus
+                    elif anchor_cat and cand_cats[idx] == anchor_cat:
+                        val += slot1_cat_only_bonus
                 if apply_mmr:
                     sc = cand_subcats[idx]
                     br = cand_brands[idx]

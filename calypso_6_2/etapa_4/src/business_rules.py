@@ -183,6 +183,8 @@ def split_cart_items(
         if pid not in active_ids:
             continue  # agotado / inactivo: no se puede enseñar
         age = now_ms - ts_ms
+        if age < -60_000.0:
+            continue  # evento futuro respecto a now_ms (evita fuga temporal)
         if age <= active_ms:
             if use_active:
                 active.append(pid)

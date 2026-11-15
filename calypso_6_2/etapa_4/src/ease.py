@@ -1,4 +1,4 @@
-"""Closed-form EASE, co-visit fusion, and 2-hop graph diffusion for Calypso 6.1."""
+"""Closed-form EASE, co-visit fusion, hub-regularized normalization, and 2-hop graph diffusion for Calypso 6.2."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -106,10 +106,13 @@ def fit_ease_from_transitions(
         ib = idx.get(b)
         if ia is None or ib is None or ia == ib:
             continue
-        G[ia, ib] = w
-        G[ib, ia] = w
-        row_sums[ia] += w
-        row_sums[ib] += w
+        # Soft hub-degree dampening so super-popular items do not monopolize neighbor lists
+        damp = 1.0 / ((max(item_diag.get(a, 1.0), 1.0) * max(item_diag.get(b, 1.0), 1.0)) ** 0.04)
+        w_adj = w * damp
+        G[ia, ib] = w_adj
+        G[ib, ia] = w_adj
+        row_sums[ia] += w_adj
+        row_sums[ib] += w_adj
 
     for k, pid in enumerate(ranked_items):
         # Ensure diagonal dominates off-diagonal energy + ridge lam so G is SPD
@@ -149,14 +152,14 @@ def fit_ease_from_transitions(
     if not return_hop2:
         return out
 
-    # Fast sparse 2-hop diffusion over normalized top-k EASE edges
+    # Fast sparse 2-hop diffusion over normalized top-k EASE edges (excluding direct top-16)
     hop2_out: dict[str, tuple[tuple[str, float], ...]] = {}
     hk = max(1, int(hop2_top_k))
     for src_pid, nbs in out.items():
         acc: dict[str, float] = defaultdict(float)
-        direct_set = {dst for dst, _ in nbs[:8]}
-        for mid_pid, w1 in nbs[:18]:
-            for dst_pid, w2 in out.get(mid_pid, ())[:14]:
+        direct_set = {dst for dst, _ in nbs[:16]}
+        for mid_pid, w1 in nbs[:20]:
+            for dst_pid, w2 in out.get(mid_pid, ())[:16]:
                 if dst_pid == src_pid or dst_pid in direct_set:
                     continue
                 acc[dst_pid] += w1 * w2

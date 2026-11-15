@@ -98,7 +98,7 @@ class TestStage4Hardening(unittest.TestCase):
         self.assertEqual(sent, 3)
         self.assertEqual(len(flaky_client.pushed_batches), 1)
         for rec in flaky_client.pushed_batches[0]:
-            self.assertEqual(rec["model_version"], "calypso-6.1")
+            self.assertEqual(rec["model_version"], "calypso-6.2")
             self.assertTrue(validate_submission_record(rec, snap.active_ids))
 
         # Cycle 3: same requests are now skipped because push was confirmed
@@ -107,7 +107,7 @@ class TestStage4Hardening(unittest.TestCase):
     def test_monitor_summary_metrics(self) -> None:
         rows = [
             {
-                "model_version": "calypso-6.1",
+                "model_version": "calypso-6.2",
                 "served_by": "team",
                 "latency_ms": 310.0,
                 "clicked": "p_1",
@@ -115,7 +115,7 @@ class TestStage4Hardening(unittest.TestCase):
                 "revenue_eur": 50.0,
             },
             {
-                "model_version": "calypso-6.1",
+                "model_version": "calypso-6.2",
                 "served_by": "baseline",
                 "latency_ms": 3400.0,
                 "clicked": "",
@@ -126,7 +126,7 @@ class TestStage4Hardening(unittest.TestCase):
         summary = summarize_feedback_rows(rows)
         self.assertEqual(len(summary), 1)
         row = summary[0]
-        self.assertEqual(row["model_version"], "calypso-6.1")
+        self.assertEqual(row["model_version"], "calypso-6.2")
         self.assertEqual(row["on_time_pct"], 50.0)
         self.assertEqual(row["cvr_pct"], 50.0)
         self.assertEqual(row["revenue_eur"], 50.0)

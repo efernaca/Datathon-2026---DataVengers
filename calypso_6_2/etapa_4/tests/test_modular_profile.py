@@ -1,4 +1,4 @@
-"""Unit tests for Calypso 6.1 modular WeightsProfile, presets, 6.1 hybrid architecture, hot-reload, and tuner."""
+"""Unit tests for Calypso 6.2 modular WeightsProfile, presets, 6.2 hybrid architecture, hot-reload, and tuner."""
 from __future__ import annotations
 
 import os
@@ -211,20 +211,27 @@ class TestModularWeightsProfile(unittest.TestCase):
         # (M7) Softened subcategory MMR diversification on home page (<= 0.08)
         self.assertLessEqual(wp.mmr_subcat_lambda_home, 0.08)
 
-    def test_calypso_6_1_hybrid_architecture(self) -> None:
+    def test_calypso_6_2_hybrid_architecture(self) -> None:
+        from src.recommender import _extract_feature_matrix
+        from src.tuner import OPTIMIZABLE_PARAMS
+
         wp = PRESETS["conversion_first"]
-        self.assertGreaterEqual(wp.scalar_count(), 220)
-        self.assertEqual(NUM_FEATURES, 40)
-        self.assertEqual(ConfigV4.from_profile(wp).candidate_pool_size, 76)
+        self.assertGreaterEqual(wp.scalar_count(), 250)
+        self.assertEqual(NUM_FEATURES, 50)
+        self.assertEqual(ConfigV4.from_profile(wp).candidate_pool_size, 92)
+        for key in OPTIMIZABLE_PARAMS:
+            self.assertTrue(hasattr(wp, key), f"Missing OPTIMIZABLE_PARAMS field {key}")
 
         snap = self.syn["snap_v4"]
-        self.assertEqual(snap.ranker.prior_weights.shape, (40,))
+        self.assertEqual(snap.ranker.prior_weights.shape, (50,))
         self.assertTrue(snap.ease_neighbors)
         self.assertTrue(snap.hop2_transitions)
+        self.assertTrue(snap.subcat_top_items)
+        self.assertTrue(snap.cat_top_items)
         self.assertGreater(snap.svd_item_vectors.shape[0], 0)
         self.assertEqual(snap.svd_item_vectors.shape[1], wp.svd_dim)
 
-        # Explicitly verify Hybrid Layer 1 Linear IPS + Layer 2 Distilled NumPy MLP
+        # Verify Hybrid Layer 1 Linear IPS + Layer 2 Balanced IPS-Distilled NumPy MLP
         rng = np.random.default_rng(123)
         X_syn = rng.uniform(0.0, 1.0, size=(600, NUM_FEATURES))
         logits = 2.0 * X_syn[:, 0] + 2.5 * X_syn[:, 1] + 1.5 * X_syn[:, 1] * X_syn[:, 21] - 2.6
@@ -251,16 +258,31 @@ class TestModularWeightsProfile(unittest.TestCase):
         deltas = rk.score_nonlin_residuals(X_syn[:16])
         self.assertEqual(deltas.shape, (16,))
 
-        # Verify page context matrices (3x8) and dynamic lookup
+        # Verify differentiated page context matrices (3x8)
         p_prod = wp.page_multipliers("product")
         p_cat = wp.page_multipliers("category")
         p_home = wp.page_multipliers("home")
         self.assertEqual(len(p_prod), 8)
         self.assertEqual(len(p_cat), 8)
         self.assertEqual(len(p_home), 8)
-        from dataclasses import replace as _dc_replace
-        wp_custom = _dc_replace(wp, page_product=(1.2, 1.1, 0.9, 1.0, 1.15, 1.0, 1.0, 0.9))
-        self.assertNotEqual(wp_custom.page_multipliers("product"), wp_custom.page_multipliers("home"))
+        self.assertNotEqual(p_prod, p_cat)
+        self.assertNotEqual(p_prod, p_home)
+
+        # Verify repeat-view & temporal decay feature extraction from timestamped requests
+        sample_pid = snap.fallback_ranked[0]
+        req_ts_feat = {
+            "user_id": "u_ts_check",
+            "ts": "2026-11-11T12:00:00Z",
+            "context": {"region": "Madrid", "device": "web", "page": "product"},
+            "recent_views": [
+                {"product_id": sample_pid, "ts": "2026-11-11T11:55:00Z"},
+                {"product_id": sample_pid, "ts": "2026-11-11T11:58:00Z"},
+            ],
+        }
+        mat_rep = _extract_feature_matrix(snap, req_ts_feat, [sample_pid], weights_profile=wp)
+        self.assertEqual(mat_rep.shape, (1, 50))
+        self.assertGreater(mat_rep[0, 40], 0.4)  # rv_repeat_count_norm
+        self.assertGreater(mat_rep[0, 41], 0.8)  # rv_temporal_recency
 
         # Verify with_updated_priors preserves distilled MLP matrices
         cloned = rk.with_updated_priors(
@@ -269,7 +291,7 @@ class TestModularWeightsProfile(unittest.TestCase):
             wp.max_prior_multiplier,
         )
         self.assertIs(cloned.nl_W1, rk.nl_W1)
-        self.assertEqual(cloned.prior_weights.shape, (40,))
+        self.assertEqual(cloned.prior_weights.shape, (50,))
 
 
 if __name__ == "__main__":
