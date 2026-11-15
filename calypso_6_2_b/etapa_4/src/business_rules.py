@@ -89,16 +89,20 @@ class CartPurchaseIndex:
                 self._base_carts[uid] = carts
             if rec:
                 self._base_recurrent[uid] = rec
+<<<<<<< HEAD
         self._live_base_ev: dict[str, dict[str, list[float]]] = {}
         self._live_base_carts: dict[str, tuple[tuple[str, float], ...]] = dict(self._base_carts)
         self._live_base_rec: dict[str, tuple[tuple[str, int], ...]] = dict(self._base_recurrent)
         self._live_base_bought: dict[str, frozenset[str]] = {}
         self._live_base_merged: dict[str, dict[str, list[float]]] = {}
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     @property
     def n_hist_users(self) -> int:
         return len(self._hist)
 
+<<<<<<< HEAD
     def set_live_base(self, full_live_event_rows: Iterable[Mapping[str, Any]]) -> None:
         """Pre-aggregate full live shop.events stream once so fast ticks only touch tiny deltas."""
         live_ev = _rows_to_map(full_live_event_rows)
@@ -193,6 +197,8 @@ class CartPurchaseIndex:
                 live_bought[uid] = frozenset(bought_now)
         return carts, recurrent, live_bought
 
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     def build(
         self,
         live_event_rows: Iterable[Mapping[str, Any]] = (),

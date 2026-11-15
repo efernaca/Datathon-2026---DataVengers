@@ -174,6 +174,7 @@ class TestStage4Hardening(unittest.TestCase):
         )
         self.assertGreaterEqual(float(rep_sg.loc[("WARM", "sg"), "hit_rate_buy@10"]), 0.83)
 
+<<<<<<< HEAD
     def test_async_push_and_incremental_live_refresh(self) -> None:
         import threading
         import time as _t
@@ -235,6 +236,8 @@ class TestStage4Hardening(unittest.TestCase):
             self.assertEqual(updated.version, snap.version + 1)
             self.assertLess(dt_ms, 500.0)
 
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
 if __name__ == "__main__":
     unittest.main()

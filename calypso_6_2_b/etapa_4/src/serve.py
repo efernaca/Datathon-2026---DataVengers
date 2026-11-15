@@ -11,7 +11,10 @@ if __name__ == "__main__" and not __package__:
 
 import argparse
 from collections import deque
+<<<<<<< HEAD
 from concurrent.futures import Future, ThreadPoolExecutor
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 from dataclasses import replace
 import json
 import logging
@@ -38,7 +41,10 @@ from .recommender import (
     _extract_feature_matrix,
     build_product_static_table,
     build_snapshot_v4_from_records,
+<<<<<<< HEAD
     compute_live_signals,
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 )
 from .reranker import build_ips_training_dataset
 from .state import RecommenderSnapshotV4, StateStore, StaticHistoryBundle
@@ -64,6 +70,7 @@ def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle, indent=2)
                 handle.flush()
+<<<<<<< HEAD
             for attempt in range(5):
                 try:
                     os.replace(tmp_name, heartbeat_path)
@@ -75,6 +82,9 @@ def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
                 os.unlink(tmp_name)
             except OSError:
                 pass
+=======
+            os.replace(tmp_name, heartbeat_path)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         except Exception:
             try:
                 os.unlink(tmp_name)
@@ -530,6 +540,7 @@ class Stage4BackgroundUpdater(threading.Thread):
             use_empirical_exam_curve=wp.use_empirical_exam_curve,
         )
         self._static_bundle: StaticHistoryBundle | None = cache.load_static_history()
+<<<<<<< HEAD
         # 4.1: índice de carrito/recurrentes (histórico precalculado + capa en vivo incremental)
         self._cart_index: CartPurchaseIndex | None = None
         self._live_cart_full: list[dict[str, Any]] = []
@@ -542,6 +553,12 @@ class Stage4BackgroundUpdater(threading.Thread):
         self._cached_upd_cat: list[dict[str, Any]] = []
         self._last_snapshot_disk_save: float = time.time()
         self._last_online_ft: float = 0.0
+=======
+        # 4.1: índice de carrito/recurrentes (histórico precalculado + capa en vivo)
+        self._cart_index: CartPurchaseIndex | None = None
+        self._live_cart_full: list[dict[str, Any]] = []
+        self._fb_purchase_rows: list[dict[str, Any]] = []
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         cur = store.get()
         self._version = cur.version if cur is not None else 0
 
@@ -591,6 +608,7 @@ class Stage4BackgroundUpdater(threading.Thread):
                 getattr(bundle, "recurrent_hist_rows", None) or [] if bundle else [],
                 min_recurrent=self.config.v4_recurrent_min_purchases,
             )
+<<<<<<< HEAD
             if self._live_cart_full:
                 self._cart_index.set_live_base(self._live_cart_full)
         return self._cart_index
@@ -601,6 +619,13 @@ class Stage4BackgroundUpdater(threading.Thread):
         carts, rec, extra = idx.build_incremental(delta, self._fb_purchase_rows)
         self._last_live_bought_extra = extra
         return carts, rec, extra
+=======
+        return self._cart_index
+
+    def _cart_state(self, recent_rows: list[dict[str, Any]] | None = None) -> tuple[Any, Any, Any]:
+        live_rows = _merge_live_cart_rows(self._live_cart_full, recent_rows or [])
+        return self._get_cart_index().build(live_rows, self._fb_purchase_rows)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     def _check_profile_reload(self) -> bool:
         """Reload weights_profile.json on disk modifications without stopping serving."""
@@ -654,6 +679,7 @@ class Stage4BackgroundUpdater(threading.Thread):
         )
         return True
 
+<<<<<<< HEAD
     def _save_snapshot_throttled(self, snap: RecommenderSnapshotV4, *, force: bool = False) -> None:
         now = time.time()
         if not force and (now - self._last_snapshot_disk_save) < 600.0:
@@ -826,12 +852,17 @@ class Stage4BackgroundUpdater(threading.Thread):
 
     def refresh_live_and_model(self, force_static: bool = False, force_full: bool = False) -> None:
         """Rebuild snapshot using incremental live updates (<0.3s) or full static rebuild when needed."""
+=======
+    def refresh_live_and_model(self, force_static: bool = False) -> None:
+        """Rebuild snapshot using cached static history + lightweight live SQL queries."""
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         t0 = time.perf_counter()
         if force_static or self._static_bundle is None:
             bundle = self._fetch_static_history()
         else:
             bundle = self._static_bundle
 
+<<<<<<< HEAD
         now_t = time.time()
         if self._last_cat_upd_ts == 0.0 or now_t - self._last_cat_upd_ts >= 60.0:
             upd_cat_res = self.client.query_safe(SQL_CATALOG_UPDATES, timeout=5.0)
@@ -858,10 +889,25 @@ class Stage4BackgroundUpdater(threading.Thread):
                 self._latest_recent_cart = recent_cart
                 self._last_recent_cart_ts = time.time()
         fb_purch = self.client.query_safe(_sql_feedback_purchases(self.config.team_id), timeout=3.5)
+=======
+        upd_cat = self.client.query_safe(SQL_CATALOG_UPDATES, timeout=8.0) or []
+        oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=4.0) or []
+        oos_ids = [str(r["product_id"]) for r in oos_rows]
+        trend_rows = self.client.query_safe(SQL_LIVE_TRENDS, timeout=5.0)
+        if trend_rows is None:
+            trend_rows = self.client.query_safe(SQL_LIVE_TRENDS_FALLBACK, timeout=5.0) or []
+        live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=5.0) or []
+        feedback_rows = self._fetch_feedback_rows()
+        live_cart = self.client.query_safe(SQL_LIVE_CART_EVENTS, timeout=6.0)
+        if live_cart is not None:
+            self._live_cart_full = live_cart
+        fb_purch = self.client.query_safe(_sql_feedback_purchases(self.config.team_id), timeout=5.0)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if fb_purch is not None:
             self._fb_purchase_rows = fb_purch
         cart_state = self._cart_state()
 
+<<<<<<< HEAD
         current = self.store.get()
         has_unseen_product = current is not None and any(
             str(r.get("product_id") or "").strip() not in current.products
@@ -898,6 +944,8 @@ class Stage4BackgroundUpdater(threading.Thread):
             )
             return
 
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         self._version += 1
         snap, scratch_payload = build_snapshot_v4_from_records(
             catalog_rows=bundle.catalog_rows,
@@ -928,7 +976,11 @@ class Stage4BackgroundUpdater(threading.Thread):
 
         snap.config_override = self.config
         self.store.update(snap)
+<<<<<<< HEAD
         self._save_snapshot_throttled(snap, force=True)
+=======
+        self.cache.save_snapshot(snap)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
         if scratch_payload:
             try:
@@ -956,6 +1008,7 @@ class Stage4BackgroundUpdater(threading.Thread):
         current = self.store.get()
         if current is None:
             return
+<<<<<<< HEAD
         now_t = time.time()
         oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=1.8)
         live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=1.8)
@@ -965,16 +1018,25 @@ class Stage4BackgroundUpdater(threading.Thread):
             if recent_cart_rows is not None:
                 self._latest_recent_cart = recent_cart_rows
                 self._last_recent_cart_ts = time.time()
+=======
+        oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=2.5)
+        live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=2.5)
+        recent_cart_rows = self.client.query_safe(SQL_LIVE_CART_EVENTS_RECENT, timeout=2.0)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if oos_rows is None and live_bought_rows is None and recent_cart_rows is None:
             return
         if recent_cart_rows is not None:
             new_carts, new_recurrent, live_bought_extra = self._cart_state(recent_cart_rows)
         else:
+<<<<<<< HEAD
             new_carts, new_recurrent, live_bought_extra = (
                 current.user_carts,
                 current.user_recurrent,
                 self._last_live_bought_extra,
             )
+=======
+            new_carts, new_recurrent, live_bought_extra = current.user_carts, current.user_recurrent, {}
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
         new_oos = (
             frozenset(str(r["product_id"]) for r in oos_rows)
@@ -1116,7 +1178,11 @@ class Stage4BackgroundUpdater(threading.Thread):
                     or (now - last_static >= self.config.static_refresh_interval_s)
                 )
                 if profile_changed or need_static or (now - last_live >= self.config.live_refresh_interval_s):
+<<<<<<< HEAD
                     self.refresh_live_and_model(force_static=need_static, force_full=profile_changed)
+=======
+                    self.refresh_live_and_model(force_static=need_static)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
                     last_live = time.time()
                     if need_static:
                         last_static = last_live
@@ -1130,7 +1196,11 @@ class Stage4BackgroundUpdater(threading.Thread):
 
 
 class CalypsoFastLoopV4:
+<<<<<<< HEAD
     """SLA-hardened FastLoop: pulls fresh requests only, async non-blocking push, confirms _seen after push."""
+=======
+    """SLA-hardened FastLoop: pulls fresh requests only, confirms _seen only after push."""
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     def __init__(
         self,
@@ -1143,6 +1213,7 @@ class CalypsoFastLoopV4:
         self.store = store
         self.recommender = recommender
         self.config = config
+<<<<<<< HEAD
         self._state_lock = threading.Lock()
         self._seen_queue: deque[str] = deque(maxlen=5000)
         self._seen_set: set[str] = set()
@@ -1154,21 +1225,34 @@ class CalypsoFastLoopV4:
         self._last_pull_dispatch: float = 0.0
         self._async_submitted: int = 0
         self._async_last_batch: int = 0
+=======
+        self._seen_queue: deque[str] = deque(maxlen=5000)
+        self._seen_set: set[str] = set()
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         self._sql_pull_fresh = (
             f"SELECT request_id, ts::String AS ts, user_id, is_new_user, context, recent_views "
             f"FROM shop.requests "
             f"WHERE ts::DateTime64(3) >= "
             f"(SELECT max(ts::DateTime64(3)) FROM shop.requests) "
             f"- INTERVAL {int(config.max_request_age_ms)} MILLISECOND "
+<<<<<<< HEAD
             f"ORDER BY ts DESC LIMIT {int(config.max_requests_per_batch)}"
         )
         self._sql_pull_fallback = (
             f"SELECT request_id, ts::String AS ts, user_id, is_new_user, context, recent_views "
             f"FROM shop.requests ORDER BY ts DESC LIMIT {min(8, int(config.max_requests_per_batch))}"
+=======
+            f"ORDER BY ts ASC LIMIT {int(config.max_requests_per_batch)}"
+        )
+        self._sql_pull_fallback = (
+            f"SELECT request_id, ts::String AS ts, user_id, is_new_user, context, recent_views "
+            f"FROM shop.requests ORDER BY ts DESC LIMIT {min(12, int(config.max_requests_per_batch))}"
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         )
 
     def commit_seen(self, request_ids: list[str]) -> None:
         """Record request IDs as seen ONLY after submission succeeded."""
+<<<<<<< HEAD
         with self._state_lock:
             for rid in request_ids:
                 if rid in self._seen_set:
@@ -1178,6 +1262,16 @@ class CalypsoFastLoopV4:
                     self._seen_set.discard(evicted)
                 self._seen_queue.append(rid)
                 self._seen_set.add(rid)
+=======
+        for rid in request_ids:
+            if rid in self._seen_set:
+                continue
+            if len(self._seen_queue) == self._seen_queue.maxlen:
+                evicted = self._seen_queue.popleft()
+                self._seen_set.discard(evicted)
+            self._seen_queue.append(rid)
+            self._seen_set.add(rid)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     def prepare_batch(self, request_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
         """Score unseen requests and return (valid_answers, answered_request_ids)."""
@@ -1185,6 +1279,7 @@ class CalypsoFastLoopV4:
         if snap is None:
             return [], []
 
+<<<<<<< HEAD
         with self._state_lock:
             skip_ids = self._seen_set | self._in_flight
         fresh_rows: list[dict[str, Any]] = []
@@ -1195,6 +1290,11 @@ class CalypsoFastLoopV4:
                 continue
             seen_in_batch.add(rid)
             fresh_rows.append(req)
+=======
+        fresh_rows = [
+            req for req in request_rows if str(req.get("request_id") or "") not in self._seen_set
+        ]
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if not fresh_rows:
             return [], []
 
@@ -1225,6 +1325,7 @@ class CalypsoFastLoopV4:
             self.commit_seen(answered_ids)
         return answers
 
+<<<<<<< HEAD
     def _pull_requests(self) -> list[dict[str, Any]]:
         assert self.client is not None
         rows = self.client.query_safe(self._sql_pull_fresh, timeout=(0.9, 1.5))
@@ -1238,12 +1339,20 @@ class CalypsoFastLoopV4:
 
     def step(self) -> int:
         rows = self._pull_requests()
+=======
+    def step(self) -> int:
+        assert self.client is not None
+        rows = self.client.query_safe(self._sql_pull_fresh, timeout=0.9)
+        if rows is None:
+            rows = self.client.query_safe(self._sql_pull_fallback, timeout=0.9)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if not rows:
             return 0
         answers, answered_ids = self.prepare_batch(rows)
         if not answers:
             return 0
         # Push FIRST, commit_seen SECOND so failed pushes retry automatically on next tick
+<<<<<<< HEAD
         self.client.push_submissions(answers, timeout=(0.9, 1.4))
         self.commit_seen(answered_ids)
         return len(answers)
@@ -1335,6 +1444,12 @@ class CalypsoFastLoopV4:
         self._pull_pool.shutdown(wait=False)
         self._push_pool.shutdown(wait=False)
 
+=======
+        self.client.push_submissions(answers, timeout=0.9)
+        self.commit_seen(answered_ids)
+        return len(answers)
+
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
 def _resolve_runtime_profile(preset: str = "", weights_profile: str = "") -> tuple[WeightsProfile, ConfigV4]:
     base_cfg = ConfigV4.from_env(weights_profile_path=weights_profile or None)
@@ -1496,9 +1611,15 @@ def main() -> None:
     parser.add_argument("--model-version", type=str, default="", help="Override model_version label")
     parser.add_argument("--preset", type=str, default="", help="Override WeightsProfile preset name")
     parser.add_argument("--weights-profile", type=str, default="", help="Path to custom weights_profile JSON")
+<<<<<<< HEAD
     parser.add_argument("--poll-interval", type=float, default=0.06, help="Fast-loop poll seconds")
     parser.add_argument("--stock-interval", type=float, default=2.5, help="Stock check seconds")
     parser.add_argument("--live-interval", type=float, default=45.0, help="Live feedback refit seconds")
+=======
+    parser.add_argument("--poll-interval", type=float, default=0.12, help="Fast-loop poll seconds")
+    parser.add_argument("--stock-interval", type=float, default=1.5, help="Stock check seconds")
+    parser.add_argument("--live-interval", type=float, default=15.0, help="Live feedback refit seconds")
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     args = parser.parse_args()
 
     if args.self_check:
@@ -1556,9 +1677,15 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
+<<<<<<< HEAD
                 "model_name": "calypso 6.2b",
                 "model_version": cfg.model_version,
                 "folder": "calypso_6_2_b",
+=======
+                "model_name": "calypso 6.2a",
+                "model_version": cfg.model_version,
+                "folder": "calypso_6_2_a",
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
                 "profile": (
                     snap.weights_profile.profile_name
                     if (snap is not None and snap.weights_profile)
@@ -1616,6 +1743,7 @@ def main() -> None:
         pid,
     )
 
+<<<<<<< HEAD
     last_hb_written = 0.0
 
     try:
@@ -1646,6 +1774,37 @@ def main() -> None:
         loop.close()
 
     submitted_total, last_batch_size = loop.drain_async_stats()
+=======
+    submitted_total = 0
+    last_batch_size = 0
+    last_hb_written = 0.0
+
+    while not stop_event.is_set():
+        step_ok = False
+        try:
+            answered = loop.step()
+            step_ok = True
+            if answered:
+                submitted_total += answered
+                last_batch_size = answered
+                logger.info("[%s] Submitted %d fresh answers", cfg.model_version, answered)
+        except Exception as exc:
+            logger.error("Calypso 6.2 FastLoop error: %s", exc)
+            time.sleep(0.35)
+
+        now_t = time.time()
+        if step_ok and (last_hb_written == 0.0 or now_t - last_hb_written >= 1.0):
+            _emit_hb(
+                ready=True,
+                snap=store.get(),
+                submitted_total=submitted_total,
+                last_batch=last_batch_size,
+            )
+            last_hb_written = now_t
+
+        time.sleep(cfg.poll_interval_s)
+
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     _emit_hb(ready=False, snap=store.get(), submitted_total=submitted_total, last_batch=last_batch_size)
 
 

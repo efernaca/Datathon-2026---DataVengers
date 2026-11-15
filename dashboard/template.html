@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataVengers · Tablero de decisiones RawTree (Calypso 6.2b)</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f3f0; --surface: #fcfcfb; --border: #e3e2dd;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #7c7b76; --grid: #e9e8e3; --axis: #b9b8b2;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --neutral: #a9a8a2;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --info: #2a78d6;
+  --band: rgba(42,120,214,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --border: #2e2e2b;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #94938c; --grid: #2a2a27; --axis: #55544f;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --neutral: #6c6b66;
+    --band: rgba(57,135,229,.22);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --border: #2e2e2b;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #94938c; --grid: #2a2a27; --axis: #55544f;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --neutral: #6c6b66;
+  --band: rgba(57,135,229,.22);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 60px; }
+header h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+header .sub { color: var(--text-2); margin: 0 0 16px; }
+.meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.meta button { font: inherit; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.formula { display: flex; gap: 2px; margin: 14px 0 6px; border-radius: 6px; overflow: hidden; }
+.formula div { padding: 8px 10px; color: #fff; font-weight: 600; font-size: 13px; }
+.formula small { display: block; font-weight: 400; opacity: .9; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-top: 16px; }
+.card h2 { font-size: 16px; margin: 0; }
+.card .q { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.src { color: var(--muted); font-size: 12px; margin: 4px 0 12px; }
+.src code, p code, li code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.decision { border-left: 3px solid var(--text); padding: 4px 0 4px 12px; }
+.decision b.lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); margin-bottom: 2px; }
+.decision p { margin: 0 0 8px; }
+.evidence { color: var(--text-2); font-size: 13px; }
+.evidence li { margin-bottom: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.kpi .k { font-size: 12px; color: var(--text-2); }
+.kpi .v { font-size: 30px; font-weight: 650; letter-spacing: -.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 14px; font-weight: 500; color: var(--text-2); }
+.kpi .c { font-size: 12px; color: var(--muted); }
+.kpi .w { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+.status i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; margin-top: 10px; }
+.check { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.check .t { font-weight: 600; margin-top: 4px; }
+.check .d { color: var(--text-2); margin-top: 3px; }
+.ico { font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; color: #fff; flex: none; }
+.empty { border: 1px dashed var(--axis); border-radius: 8px; padding: 18px; color: var(--text-2); background: var(--bg); }
+.empty pre { margin: 8px 0 0; font-size: 12px; white-space: pre-wrap; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); margin: 2px 0 6px; flex-wrap: wrap; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend i.line { height: 2px; width: 14px; border-radius: 0; }
+.legend i.dash { height: 0; width: 14px; border-top: 2px dashed var(--muted); background: none !important; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--text-2); font-size: 11px; font-family: inherit; }
+svg .ttl { fill: var(--text); font-weight: 600; font-size: 12px; }
+svg .val { fill: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .gridl { stroke: var(--grid); stroke-width: 1; }
+svg .axisl { stroke: var(--axis); stroke-width: 1; }
+svg .hit { fill: transparent; cursor: default; }
+details { margin-top: 10px; font-size: 12px; color: var(--text-2); }
+details summary { cursor: pointer; }
+table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+th, td { border-bottom: 1px solid var(--border); padding: 3px 10px 3px 0; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text); font-weight: 600; }
+.subgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .subgrid { grid-template-columns: 1fr; } }
+.subgrid h3, .grid2 h3 { font-size: 13px; margin: 0 0 4px; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  opacity: 0; transition: opacity .08s; max-width: 280px; }
+#tip b { font-weight: 600; }
+footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tablero de decisiones · Recomendador RawTree (Calypso 6.2b)</h1>
+    <p class="sub">DataVengers · Side Challenge Tukey. Cada panel responde a una pregunta: evidencia → decisión tomada.</p>
+    <div class="meta" id="meta"></div>
+    <div class="formula" id="formula" aria-label="Fórmula de puntuación"></div>
+  </header>
+
+  <section class="card" id="checks-card">
+    <div class="q"><h2>Antes de enseñar nada: incoherencias detectadas</h2><span class="tag">auto-comprobado al construir</span></div>
+    <div class="checks" id="checks"></div>
+  </section>
+
+  <section class="card" id="p1">
+    <div class="q"><h2>1 · ¿Cómo vamos en la final?</h2><span class="tag">Conversión 50 · Cold start 10 · Fiabilidad 10</span></div>
+    <p class="src" id="p1-src"></p>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="card" id="p2">
+    <div class="q"><h2>2 · ¿Qué preset desplegamos en la final?</h2><span class="tag">Conversión · Cold start</span></div>
+    <p class="src">Fuente: <code>calypso_6_2_b/preset_comparison_results.json</code>. hit@10 de compra (offline, solo sesiones con compra), con IC 95 % de Wilson. Tamaños de muestra inferidos de las fracciones del JSON.</p>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Preset recomendado</span><span><i style="background:var(--neutral)"></i>Resto de presets</span><span>Barra = IC 95 %</span></div>
+    <div class="subgrid" id="p2-chart"></div>
+    <div class="grid2" style="margin-top:14px">
+      <ul class="evidence" id="p2-ev"></ul>
+      <div class="decision" id="p2-dec"></div>
+    </div>
+    <details><summary>Ver tabla</summary><div id="p2-table"></div></details>
+  </section>
+
+  <section class="card" id="p3">
+    <div class="q"><h2>3 · ¿Fijamos arriba los productos que el usuario ya ha visto?</h2><span class="tag">Conversión</span></div>
+    <p class="src" id="p3-src"></p>
+    <div class="grid2">
+      <div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Producto ya visto en la sesión</span><span><i style="background:var(--s2)"></i>Producto no visto</span><span>Barra fina = IC 95 %</span></div>
+        <div id="p3-chart"></div>
+      </div>
+      <div>
+        <ul class="evidence" id="p3-ev"></ul>
+        <div class="decision" id="p3-dec"></div>
+      </div>
+    </div>
+    <details><summary>Ver tabla</summary><div id="p3-table"></div></details>
+  </section>
+
+  <section class="card" id="p4">
+    <div class="q"><h2>4 · ¿Reglas de negocio rígidas o competir por score?</h2><span class="tag">Conversión</span></div>
+    <p class="src" id="p4-src"></p>
+    <div class="grid2">
+      <div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Media de 5 semillas</span><span>Barra = mín–máx entre semillas</span><span><i class="dash"></i>Sin cambio frente a 3.1b</span></div>
+        <div id="p4-chart"></div>
+      </div>
+      <div>
+        <ul class="evidence" id="p4-ev"></ul>
+        <div class="decision" id="p4-dec"></div>
+      </div>
+    </div>
+    <details><summary>Ver tabla</summary><div id="p4-table"></div></details>
+  </section>
+
+  <section class="card" id="p5">
+    <div class="q"><h2>5 · ¿Dónde ganamos y dónde perdemos en vivo?</h2><span class="tag">Conversión · Cold start</span></div>
+    <p class="src" id="p5-src"></p>
+    <div id="p5-body"></div>
+  </section>
+
+  <section class="card" id="p6">
+    <div class="q"><h2>6 · ¿Es fiable el sistema?</h2><span class="tag">Fiabilidad 10</span></div>
+    <p class="src" id="p6-src"></p>
+    <div id="p6-body"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const D = /*__DASHBOARD_DATA__*/null;
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const fmt = (x, d = 1) => x == null || Number.isNaN(x) ? "—" : x.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (x, d = 1) => x == null ? "—" : fmt(100 * x, d) + " %";
+const int = (x) => x == null ? "—" : Math.round(x).toLocaleString("es-ES");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function el(tag, attrs = {}, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function mkSvg(container, w, h) {
+  const s = el("svg", { viewBox: `0 0 ${w} ${h}`, role: "img" });
+  container.appendChild(s);
+  return s;
+}
+const lin = (d0, d1, r0, r1) => { const f = (v) => r0 + (v - d0) / (d1 - d0) * (r1 - r0); f.inv = (p) => d0 + (p - r0) / (r1 - r0) * (d1 - d0); return f; };
+function niceTicks(min, max, n = 5) {
+  const span = max - min, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= n) || mag * 10;
+  const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+
+// ---- tooltip
+const tip = $("tip");
+document.addEventListener("pointermove", (ev) => {
+  const t = ev.target.closest && ev.target.closest("[data-tip]");
+  if (!t) { tip.style.opacity = 0; return; }
+  tip.innerHTML = t.getAttribute("data-tip");
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.opacity = 1;
+});
+
+function table(container, headers, rows) {
+  const h = `<table><thead><tr>${headers.map((x) => `<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("") + "</tbody></table>";
+  container.innerHTML = h;
+}
+const statusIcon = { ok: ["var(--good)", "✓", "OK"], warn: ["var(--warning)", "!", "Revisar"], crit: ["var(--critical)", "×", "Fallo"], info: ["var(--info)", "i", "Nota"] };
+function statusHTML(kind, label) {
+  const [c, s, l] = statusIcon[kind];
+  return `<span class="status"><i class="ico" style="background:${c}">${s}</i>${esc(label || l)}</span>`;
+}
+function emptyBox(container, title, body) {
+  container.innerHTML = `<div class="empty"><b>${esc(title)}</b><pre>${esc(body)}</pre></div>`;
+}
+const EXPORT_HOWTO = "Sin red a RawTree desde la sesión de Claude. En una máquina del equipo con red:\n  python dashboard/export_live.py          # escribe dashboard/live/live_export.json\n  python dashboard/build_data.py           # regenera este index.html";
+
+// ---- chart: horizontal dot + CI
+function dotCI(container, { rows, domain, title, showLabels = true, labelW = 150, fmtV = (v) => pct(v), refLine, W = 400 }) {
+  const rowH = 30, top = 26, bottom = 26, lw = showLabels ? labelW : 8, right = 46;
+  const H = top + rows.length * rowH + bottom;
+  const s = mkSvg(container, W, H);
+  const x = lin(domain[0], domain[1], lw, W - right);
+  if (title) el("text", { x: lw, y: 12, class: "ttl" }, s, title);
+  for (const t of niceTicks(domain[0], domain[1], 4)) {
+    el("line", { x1: x(t), x2: x(t), y1: top - 4, y2: H - bottom, class: "gridl" }, s);
+    el("text", { x: x(t), y: H - bottom + 14, "text-anchor": "middle" }, s, fmtV(t).replace(",0 %", " %"));
+  }
+  if (refLine != null) el("line", { x1: x(refLine), x2: x(refLine), y1: top - 4, y2: H - bottom, stroke: "var(--muted)", "stroke-dasharray": "4 3", "stroke-width": 1.5 }, s);
+  rows.forEach((r, i) => {
+    const cy = top + i * rowH + rowH / 2;
+    if (showLabels) el("text", { x: lw - 8, y: cy + 4, "text-anchor": "end", class: r.strong ? "ttl" : null }, s, r.label);
+    if (r.lo != null) el("line", { x1: x(r.lo), x2: x(r.hi), y1: cy, y2: cy, stroke: r.color, "stroke-width": 2, "stroke-linecap": "round" }, s);
+    el("circle", { cx: x(r.value), cy, r: 5.5, fill: r.color, stroke: "var(--surface)", "stroke-width": 2 }, s);
+    el("text", { x: Math.max(x(r.hi ?? r.value), x(r.value)) + 8, y: cy + 4, class: "val" }, s, fmtV(r.value));
+    el("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, class: "hit", "data-tip": r.tip }, s);
+  });
+  return s;
+}
+
+// ---- chart: grouped vertical bars with CI whiskers
+function groupedBars(container, { cats, series, domain, yFmt, title, H = 270 }) {
+  const W = 640, left = 44, right = 10, top = 22, bottom = 34;
+  const s = mkSvg(container, W, H);
+  const x0 = lin(0, cats.length, left, W - right), y = lin(domain[0], domain[1], H - bottom, top);
+  if (title) el("text", { x: left, y: 12, class: "ttl" }, s, title);
+  for (const t of niceTicks(domain[0], domain[1], 5)) {
+    el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), class: "gridl" }, s);
+    el("text", { x: left - 6, y: y(t) + 4, "text-anchor": "end" }, s, yFmt(t));
+  }
+  el("line", { x1: left, x2: W - right, y1: y(0), y2: y(0), class: "axisl" }, s);
+  const band = (W - right - left) / cats.length, bw = Math.min(22, (band - 10) / series.length - 2);
+  cats.forEach((c, i) => {
+    const cx = x0(i) + band / 2;
+    el("text", { x: cx, y: H - bottom + 16, "text-anchor": "middle" }, s, c);
+    series.forEach((se, j) => {
+      const d = se.data[i]; if (!d || d.value == null) return;
+      const bx = cx - (series.length * (bw + 2)) / 2 + j * (bw + 2) + 1;
+      const yv = y(d.value), y0 = y(0), r = Math.min(4, (y0 - yv) / 2);
+      el("path", { d: `M${bx},${y0} V${yv + r} Q${bx},${yv} ${bx + r},${yv} H${bx + bw - r} Q${bx + bw},${yv} ${bx + bw},${yv + r} V${y0} Z`, fill: se.color }, s);
+      if (d.lo != null) el("line", { x1: bx + bw / 2, x2: bx + bw / 2, y1: y(d.lo), y2: y(Math.min(d.hi, domain[1])), stroke: "var(--text)", "stroke-width": 1.2, opacity: .55 }, s);
+      el("rect", { x: bx - 1, y: top, width: bw + 2, height: H - bottom - top, class: "hit", "data-tip": d.tip }, s);
+    });
+  });
+  el("text", { x: (left + W - right) / 2, y: H - 2, "text-anchor": "middle" }, s, "Posición en el carrusel (slot)");
+}
+
+// ---- chart: time line with band, markers and reference
+function timeLine(container, { pts, yKey, loKey, hiKey, domain, yFmt, title, ref, markers = [], H = 240, color = "var(--s1)", tipFn, W = 760, maxGapMin = null, dots = false }) {
+  const left = 46, right = 14, top = 24, bottom = 30;
+  const s = mkSvg(container, W, H);
+  const t = pts.map((p) => new Date(p.t.replace(" ", "T")).getTime());
+  const tmin = Math.min(...t), tmax = Math.max(...t, tmin + 60000);
+  const x = lin(tmin, tmax, left, W - right), y = lin(domain[0], domain[1], H - bottom, top);
+  if (title) el("text", { x: left, y: 12, class: "ttl" }, s, title);
+  for (const v of niceTicks(domain[0], domain[1], 4)) {
+    el("line", { x1: left, x2: W - right, y1: y(v), y2: y(v), class: "gridl" }, s);
+    el("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end" }, s, yFmt(v));
+  }
+  const nT = 6;
+  for (let i = 0; i <= nT; i++) {
+    const tv = tmin + (tmax - tmin) * i / nT, d = new Date(tv);
+    el("text", { x: x(tv), y: H - bottom + 16, "text-anchor": "middle" }, s, d.toTimeString().slice(0, 5));
+  }
+  if (loKey) {
+    const up = pts.map((p, i) => `${x(t[i])},${y(Math.min(p[hiKey], domain[1]))}`), dn = pts.map((p, i) => `${x(t[i])},${y(Math.max(p[loKey], domain[0]))}`).reverse();
+    el("polygon", { points: up.concat(dn).join(" "), fill: "var(--band)" }, s);
+  }
+  if (ref) {
+    el("line", { x1: left, x2: W - right, y1: y(ref.value), y2: y(ref.value), stroke: "var(--muted)", "stroke-dasharray": "5 4", "stroke-width": 1.5 }, s);
+    el("text", { x: W - right, y: y(ref.value) - 5, "text-anchor": "end" }, s, ref.label);
+  }
+  markers.forEach((m) => {
+    const tv = new Date(m.t.replace(" ", "T")).getTime(); if (tv < tmin || tv > tmax) return;
+    el("line", { x1: x(tv), x2: x(tv), y1: top, y2: H - bottom, stroke: "var(--text-2)", "stroke-width": 1, opacity: .6 }, s);
+    el("text", { x: x(tv) + 4, y: top + 9 }, s, m.label);
+  });
+  el("path", { d: pts.map((p, i) => `${i && (maxGapMin == null || t[i] - t[i - 1] <= maxGapMin * 60000) ? "L" : "M"}${x(t[i])},${y(p[yKey])}`).join(""), fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }, s);
+  if (dots) pts.forEach((p, i) => el("circle", { cx: x(t[i]), cy: y(p[yKey]), r: 4, fill: color, stroke: "var(--surface)", "stroke-width": 2 }, s));
+  const cross = el("line", { y1: top, y2: H - bottom, stroke: "var(--axis)", opacity: 0 }, s);
+  const dot = el("circle", { r: 4.5, fill: color, stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, s);
+  const hit = el("rect", { x: left, y: top, width: W - left - right, height: H - top - bottom, class: "hit" }, s);
+  hit.addEventListener("pointermove", (ev) => {
+    const b = s.getBoundingClientRect(), px = (ev.clientX - b.left) * W / b.width, tv = x.inv(px);
+    let k = 0; t.forEach((v, i) => { if (Math.abs(v - tv) < Math.abs(t[k] - tv)) k = i; });
+    cross.setAttribute("x1", x(t[k])); cross.setAttribute("x2", x(t[k])); cross.setAttribute("opacity", 1);
+    dot.setAttribute("cx", x(t[k])); dot.setAttribute("cy", y(pts[k][yKey])); dot.setAttribute("opacity", 1);
+    hit.setAttribute("data-tip", tipFn(pts[k]));
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); });
+}
+
+// ---- chart: simple columns over categorical x (optionally stacked)
+function columns(container, { cats, stacks, domainMax, yFmt, title, H = 200, xLabelEvery = 1, xFmt = (c) => c, W = 760 }) {
+  const left = 46, right = 10, top = 22, bottom = 30;
+  const s = mkSvg(container, W, H);
+  const y = lin(0, domainMax, H - bottom, top), band = (W - left - right) / cats.length, bw = Math.max(2, band - 2);
+  if (title) el("text", { x: left, y: 12, class: "ttl" }, s, title);
+  for (const v of niceTicks(0, domainMax, 4)) {
+    el("line", { x1: left, x2: W - right, y1: y(v), y2: y(v), class: "gridl" }, s);
+    el("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end" }, s, yFmt(v));
+  }
+  cats.forEach((c, i) => {
+    const bx = left + i * band + 1; let acc = 0; const tips = [];
+    stacks.forEach((st) => {
+      const v = st.values[i] || 0; if (!v) return;
+      const y1 = y(acc + v), y0 = y(acc);
+      el("rect", { x: bx, y: y1, width: bw, height: Math.max(0, y0 - y1 - (acc ? 0 : 0)), fill: st.color, stroke: "var(--surface)", "stroke-width": stacks.length > 1 ? 1 : 0 }, s);
+      acc += v; tips.push(`${esc(st.name)}: <b>${int(v)}</b>`);
+    });
+    if (i % xLabelEvery === 0) el("text", { x: bx + bw / 2, y: H - bottom + 16, "text-anchor": "middle" }, s, xFmt(c));
+    el("rect", { x: bx, y: top, width: bw, height: H - top - bottom, class: "hit", "data-tip": `<b>${esc(c)}</b><br>${tips.join("<br>") || "0"}` }, s);
+  });
+  el("line", { x1: left, x2: W - right, y1: y(0), y2: y(0), class: "axisl" }, s);
+}
+
+// =========================================================== render
+function renderHeader() {
+  const L = D.live;
+  $("meta").innerHTML = `<span>Construido: ${esc(D.built_at)}</span>` +
+    `<span>Feedback en vivo: ${L && !L.empty ? "export " + esc(L.exported_at) : "<b>sin export</b>"}</span>` +
+    `<span>Log del servidor hasta: ${esc(D.log?.log_end || "—")}</span>` +
+    `<button id="theme" type="button">Tema claro/oscuro</button>`;
+  $("theme").onclick = () => {
+    const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    r.dataset.theme = dark ? "light" : "dark";
+  };
+  const w = D.constants.weights, tot = w.conversion + w.cold_start + w.reliability;
+  $("formula").innerHTML =
+    `<div style="flex:${w.conversion};background:#1c5cab">Conversión · ${w.conversion} pts<small>compras por 100 peticiones · paneles 1, 2, 3, 4, 5</small></div>` +
+    `<div style="flex:${w.cold_start};background:#2a78d6">Cold start · ${w.cold_start}<small>paneles 1, 2, 5</small></div>` +
+    `<div style="flex:${w.reliability};background:#6da7ec;color:#0d366b">Fiabilidad · ${w.reliability}<small>paneles 1, 6</small></div>`;
+  $("checks").innerHTML = D.checks.map((c) => `<div class="check">${statusHTML(c.status)}<div class="t">${esc(c.title)}</div><div class="d">${esc(c.detail)}</div></div>`).join("");
+}
+
+function renderKPIs() {
+  const L = D.live, C = D.constants;
+  $("p1-src").innerHTML = L && !L.empty
+    ? `Fuente: <code>team_NN.feedback</code> ⨝ <code>shop.requests</code>, ventana ${esc(L.kpi.window[0].slice(0, 19))} → ${esc(L.kpi.window[1].slice(0, 19))} (UTC). Todas las peticiones cuentan, también las servidas por el fallback.`
+    : `Fuente: <code>team_NN.feedback</code> (pendiente de export). Referencia del carrusel antiguo: ${fmt(C.old_carousel_per100, 2)} compras/100 en <code>shop.history_sessions</code>.`;
+  const tiles = [];
+  if (L && !L.empty) {
+    const K = L.kpi, d = K.all.per100 - C.old_carousel_per100;
+    tiles.push(`<div class="kpi"><div class="k">Compras por 100 peticiones</div><div class="v">${fmt(K.all.per100, 2)}</div>
+      <div class="c">IC 95 % ${fmt(K.all.lo, 2)}–${fmt(K.all.hi, 2)} · n = ${int(K.all.n)}</div>
+      <div class="w">Carrusel antiguo ${fmt(C.old_carousel_per100, 2)} (${d >= 0 ? "+" : ""}${fmt(d, 2)}). Fallback en este stream: ${fmt(K.fallback_only.per100, 2)} (n = ${int(K.fallback_only.n)})</div></div>`);
+    tiles.push(`<div class="kpi"><div class="k">Cold start · compras por 100</div><div class="v">${fmt(K.cold.per100, 2)}</div>
+      <div class="c">IC 95 % ${fmt(K.cold.lo, 2)}–${fmt(K.cold.hi, 2)} · n = ${int(K.cold.n)}</div>
+      <div class="w">Usuario nuevo o vio un producto añadido durante el evento</div></div>`);
+    const ot = K.on_time_last5 ?? K.on_time, st = ot > 0.9 ? "ok" : "crit";
+    tiles.push(`<div class="kpi"><div class="k">Respuestas válidas a tiempo</div><div class="v">${pct(K.on_time)}</div>
+      <div class="c">Últimos 5 min: ${pct(K.on_time_last5)} ${statusHTML(st, st === "ok" ? "luz verde (>90 %)" : "luz roja (≤90 %)")}</div>
+      <div class="w">Fallback: ${K.fallback_reasons.map(([r, n]) => `${esc(r || "?")} ${int(n)}`).join(" · ") || "ninguno"}</div></div>`);
+    const p95 = K.lat_p95, ls = p95 == null ? "info" : p95 < C.sla_ms * 0.8 ? "ok" : p95 < C.sla_ms ? "warn" : "crit";
+    tiles.push(`<div class="kpi"><div class="k">Latencia (p50 / p95)</div><div class="v">${fmt(K.lat_p50 / 1000, 2)}<small> s</small> / ${fmt(p95 / 1000, 2)}<small> s</small></div>
+      <div class="c">SLA ${fmt(C.sla_ms / 1000, 0)} s ${statusHTML(ls, ls === "ok" ? "holgado" : ls === "warn" ? "cerca del SLA" : "fuera de SLA")}</div>
+      <div class="w">p99 ${fmt(K.lat_p99 / 1000, 2)} s · solo respuestas servidas por el equipo</div></div>`);
+  } else {
+    const ph = (k, c) => `<div class="kpi"><div class="k">${k}</div><div class="v">—</div><div class="c">${c}</div><div class="w">Pendiente de <code>export_live.py</code></div></div>`;
+    tiles.push(ph("Compras por 100 peticiones", `Carrusel antiguo: ${fmt(C.old_carousel_per100, 2)}`), ph("Cold start · compras por 100", "Nuevos + productos nuevos"),
+      ph("Respuestas válidas a tiempo", "Luz verde si &gt; 90 % en 5 min"), ph("Latencia p50 / p95", `SLA ${C.sla_ms / 1000} s`));
+  }
+  $("kpis").innerHTML = tiles.join("");
+}
+
+function renderPresets() {
+  const P = D.presets, segs = [["ALL", "Todas las sesiones"], ["WARM", "Usuarios con historial (WARM)"], ["COLD", "Cold start (COLD)"]];
+  const order = P.ranking.map((r) => r.preset), win = P.winner;
+  const all = P.rows.filter((r) => r.segment !== "COLD_ITEM");
+  const lo = Math.floor(Math.min(...all.map((r) => r.lo)) * 20) / 20, hi = Math.ceil(Math.max(...all.map((r) => r.hi)) * 20) / 20;
+  segs.forEach(([seg, name], i) => {
+    const div = document.createElement("div"); $("p2-chart").appendChild(div);
+    const rows = order.map((p) => {
+      const r = P.rows.find((x) => x.preset === p && x.segment === seg);
+      return { label: p, value: r.hit, lo: r.lo, hi: r.hi, color: p === win ? "var(--s1)" : "var(--neutral)", strong: p === win,
+        tip: `<b>${esc(p)}</b> · ${esc(name)}<br>hit@10: <b>${pct(r.hit)}</b><br>IC 95 %: ${pct(r.lo)} – ${pct(r.hi)}<br>n = ${r.n} sesiones con compra` };
+    });
+    dotCI(div, { rows, domain: [lo, hi], title: `${name} · n = ${P.sizes[seg]}`, showLabels: true, labelW: 140 });
+  });
+  const g = (p, s) => P.rows.find((r) => r.preset === p && r.segment === s);
+  const m3 = g(win, "ALL"), ppfC = g("product_profile_focus", "COLD"), ppfW = g("product_profile_focus", "WARM"), m3C = g(win, "COLD"), m3W = g(win, "WARM");
+  const cf = g("conversion_first", "ALL"), ppfA = g("product_profile_focus", "ALL");
+  const top = P.ranking[0], second = P.ranking[1];
+  $("p2-ev").innerHTML = [
+    `<li><b>${esc(win)}</b> tiene el mejor objetivo combinado (${fmt(top.obj, 3)} vs ${fmt(second.obj, 3)} de ${esc(second.preset)}) y el mejor hit@10 global: ${pct(m3.hit)} [${pct(m3.lo, 0)}–${pct(m3.hi, 0)}].</li>`,
+    `<li><b>product_profile_focus</b> gana en COLD (${pct(ppfC.hit)} vs ${pct(m3C.hit)}), pero pierde en WARM (${pct(ppfW.hit)} vs ${pct(m3W.hit)}). Con n = ${P.sizes.COLD} los IC de COLD se solapan; WARM pesa más en la conversión total.</li>`,
+    `<li>conversion_first vs product_profile_focus en ALL (${pct(cf.hit)} vs ${pct(ppfA.hit)}) es ruido: diferencia muy por debajo del ±4 pts del IC.</li>`,
+    `<li>Coste en latencia despreciable para todos: ${P.ranking.map((r) => fmt(r.latency_ms, 2)).join(" / ")} ms por petición offline.</li>`,
+  ].join("");
+  const prof = D.log?.profiles?.["calypso-6.2b"];
+  $("p2-dec").innerHTML = `<b class="lbl">Decisión</b><p>Desplegar <b>${esc(win)}</b> en la final: es el único preset sin un segmento débil.</p>` +
+    (prof && prof !== win ? `<p>${statusHTML("warn", "Por confirmar")} el log del servidor arrancó calypso-6.2b con <code>profile=${esc(prof)}</code>, no con ${esc(win)}.</p>` : "");
+  table($("p2-table"), ["Preset", "Segmento", "hit@10", "IC inf.", "IC sup.", "n"], P.rows.map((r) => [r.preset, r.segment, pct(r.hit), pct(r.lo), pct(r.hi), r.n]));
+}
+
+function renderViewed() {
+  const V = D.viewed;
+  if (!V) { emptyBox($("p3-chart"), "Sin muestra raw", "No se encontró odyseus_2_0/ml_data/raw/*.json.gz"); return; }
+  $("p3-src").innerHTML = `Fuente: muestra local de <code>shop.history_sessions</code> en <code>odyseus_2_0/ml_data/raw</code> (${V.files} días, ${int(V.n_requests)} peticiones). Tasa de compra de cada producto mostrado, según el slot del carrusel antiguo.`;
+  const R = V.rows, slots = [...Array(10).keys()];
+  const mk = (v) => slots.map((i) => { const r = R.find((x) => x.slot === i && x.viewed === v); return { value: r.rate, lo: r.lo, hi: r.hi,
+    tip: `<b>Slot ${i + 1} · ${v ? "ya visto" : "no visto"}</b><br>Tasa de compra: <b>${pct(r.rate)}</b><br>IC 95 %: ${pct(r.lo)} – ${pct(r.hi)}<br>${int(r.buys)} compras / ${int(r.n)} impresiones` }; });
+  const maxV = Math.max(...R.map((r) => r.hi));
+  groupedBars($("p3-chart"), { cats: slots.map((i) => String(i + 1)), series: [{ color: "var(--s1)", data: mk(1) }, { color: "var(--s2)", data: mk(0) }],
+    domain: [0, Math.ceil(maxV * 20) / 20], yFmt: (v) => fmt(100 * v, 0) + " %", title: "Tasa de compra del producto mostrado (muestra enriquecida en compras)" });
+  const s0v = R.find((x) => x.slot === 0 && x.viewed === 1), s0n = R.find((x) => x.slot === 0 && x.viewed === 0);
+  $("p3-ev").innerHTML = [
+    `<li>Un producto ya visto se compra <b>≈${fmt(V.or_product_slot, 1)}×</b> más que <i>el mismo producto en el mismo slot</i> sin haberlo visto (odds ratio Mantel-Haenszel; ${int(V.observed)} compras observadas frente a ${int(V.expected)} esperadas).</li>`,
+    `<li>En el slot 1: ${pct(s0v.rate)} frente a ${pct(s0n.rate)}. El efecto se mantiene en los 10 slots y en ambas páginas (${V.pages.map((p) => `${esc(p.page)} ×${fmt(p.ratio, 1)}`).join(", ")}).</li>`,
+    `<li>Solo el ${pct(V.share_req_with_viewed_shown, 0)} de las peticiones del carrusel antiguo mostraba algún producto ya visto, aunque estos explican el ${pct(V.share_buys_of_viewed, 0)} de las compras.</li>`,
+    `<li>Escala: la muestra está enriquecida en compras (${pct(V.purchase_share, 1)} de peticiones con compra frente a ~1,4 % real). Los niveles absolutos están inflados; la razón visto/no visto es lo que vale. Un análisis previo con otra estratificación dio OR 7,2.</li>`,
+  ].join("");
+  $("p3-dec").innerHTML = `<b class="lbl">Decisión</b><p>Sí: fijar arriba los productos de <code>recent_views</code> (activos, ordenados por conversión propia) y dejar detrás el ranking normal.</p>
+    <p>${statusHTML("warn", "No desplegado")} <code>pin_viewed_top</code> solo existe en <code>odyseus_3_0</code>; en Calypso 6.2b no.</p>`;
+  table($("p3-table"), ["Slot", "Visto", "Impresiones", "Compras", "Tasa", "IC inf.", "IC sup."], R.map((r) => [r.slot + 1, r.viewed ? "sí" : "no", int(r.n), int(r.buys), pct(r.rate, 2), pct(r.lo, 2), pct(r.hi, 2)]));
+}
+
+function renderAblation() {
+  const A = D.ablation;
+  $("p4-src").innerHTML = `Fuente: <code>calypso_6_2_b/etapa_4/ablation_v4_results.csv</code> (${A.variants.length} variantes × ${A.seeds.length} semillas: ${A.seeds.join(", ")}). Cambio en DCG@10 de compra (todas las sesiones) frente a la base Calypso 3.1b, pareado por semilla.`;
+  const labels = { "A_3.1b": "3.1b (base)", "B_4.1_completo": "4.1 completo (todas las reglas)", "3.1b + carrito_activo": "+ carrito activo", "3.1b + carrito_olvidado": "+ carrito olvidado",
+    "3.1b + carrito_ambos": "+ ambos carritos", "3.1b + precio_asc": "+ precio ascendente", "3.1b + recurrentes": "+ recurrentes", "4.1 - precio_asc": "4.1 sin precio ascendente" };
+  const ds = A.deltas_dcg_all.filter((d) => d.variant !== "A_3.1b");
+  const lo = Math.min(...ds.map((d) => d.min)), hi = Math.max(...ds.map((d) => d.max), 0.01);
+  dotCI($("p4-chart"), { rows: ds.map((d) => ({ label: labels[d.variant] || d.variant, value: d.mean, lo: d.min, hi: d.max, color: "var(--s1)",
+    tip: `<b>${esc(labels[d.variant] || d.variant)}</b><br>Δ DCG@10: <b>${fmt(d.mean, 3)}</b><br>rango entre semillas: ${fmt(d.min, 3)} a ${fmt(d.max, 3)}` })),
+    domain: [Math.floor(lo * 50) / 50, Math.ceil(hi * 50) / 50], title: "Δ DCG@10 de compra vs 3.1b", labelW: 200, W: 640, fmtV: (v) => (v > 0 ? "+" : "") + fmt(v, 3), refLine: 0 });
+  const get = (v, s, m) => A.rows.find((r) => r.variant === v && r.segment === s && r.metric === m);
+  const b = get("A_3.1b", "ALL", "dcg_buy@10"), pa = get("3.1b + precio_asc", "ALL", "dcg_buy@10"), bh = get("A_3.1b", "ALL", "hit_rate_buy@10"), ph = get("3.1b + precio_asc", "ALL", "hit_rate_buy@10");
+  const full = A.deltas_dcg_all.find((d) => d.variant === "B_4.1_completo"), nopa = A.deltas_dcg_all.find((d) => d.variant === "4.1 - precio_asc");
+  $("p4-ev").innerHTML = [
+    `<li>Ordenar por precio ascendente hunde el DCG@10: <b>${fmt(b.mean, 3)} → ${fmt(pa.mean, 3)}</b>, en las ${A.seeds.length} semillas. El hit@10 no cambia (${pct(bh.mean)} vs ${pct(ph.mean)}): el producto comprado sigue en el top-10, pero baja de posición.</li>`,
+    `<li>Explica casi toda la pérdida de 4.1 completo (${fmt(full.mean, 3)}); sin esa regla queda en ${fmt(nopa.mean, 3)}.</li>`,
+    `<li>Carrito (activo/olvidado) y recurrentes son neutros: |Δ| ≤ ${fmt(Math.max(...ds.filter((d) => /carrito|recurrentes/.test(d.variant)).map((d) => Math.abs(d.mean))), 3)}, dentro de la variación entre semillas.</li>`,
+  ].join("");
+  $("p4-dec").innerHTML = `<b class="lbl">Decisión</b><p>Competir por score: las señales de negocio entran como features del ranking, no como reglas que reordenan la lista. Se elimina el orden por precio ascendente.</p>`;
+  table($("p4-table"), ["Variante", "Segmento", "Métrica", "Media", "Desv.", "Mín", "Máx"], A.rows.map((r) => [labels[r.variant] || r.variant, r.segment, r.metric, fmt(r.mean, 3), fmt(r.sd, 3), fmt(r.min, 3), fmt(r.max, 3)]));
+}
+
+function renderLive() {
+  const L = D.live, body = $("p5-body");
+  $("p5-src").innerHTML = `Fuente: <code>team_NN.feedback</code> ⨝ <code>shop.requests</code> ⨝ <code>team_NN.submissions</code>; cambios de modelo de <code>gestor_models/state/model_transitions.json</code> y de <code>model_version</code> en submissions.`;
+  if (!L || L.empty) { emptyBox(body, "Pendiente: export del feedback en vivo", EXPORT_HOWTO); return; }
+  body.innerHTML = `<div class="grid2"><div><div class="legend"><span><i class="line" style="background:var(--s1)"></i>Compras por 100 peticiones (bloques de ${L.bucket_minutes} min)</span><span><i style="background:var(--band)"></i>IC 95 %</span><span><i class="dash"></i>Carrusel antiguo</span><span>│ cambio de modelo</span></div><div id="p5-ts"></div></div><div><h3>Compras por 100 · página × tipo de usuario</h3><div id="p5-grid"></div><div class="decision" id="p5-dec" style="margin-top:12px"></div></div></div><details><summary>Ver tabla</summary><div id="p5-table"></div></details>`;
+  const ymax = Math.max(3, ...L.series.map((p) => Math.min(p.hi, 6)));
+  const marks = L.changes.map((c) => ({ t: c.t, label: c.model }));
+  timeLine($("p5-ts"), { pts: L.series, yKey: "per100", loKey: "lo", hiKey: "hi", domain: [0, Math.ceil(ymax)], yFmt: (v) => fmt(v, 1),
+    title: "Conversión en vivo", ref: { value: D.constants.old_carousel_per100, label: `carrusel antiguo ${fmt(D.constants.old_carousel_per100, 2)}` }, markers: marks,
+    tipFn: (p) => `<b>${esc(p.t.slice(11, 16))}</b> · ${esc(p.model)}<br>${fmt(p.per100, 2)} compras/100 (IC ${fmt(p.lo, 2)}–${fmt(p.hi, 2)})<br>n = ${int(p.n)} · a tiempo ${pct(p.on_time)}` });
+  const rows = [...L.grid].sort((a, b) => a.per100 - b.per100).map((g) => ({ label: `${g.page} · ${g.user}`, value: g.per100, lo: g.lo, hi: g.hi,
+    color: g.per100 >= D.constants.old_carousel_per100 ? "var(--s1)" : "var(--s2)",
+    tip: `<b>${esc(g.page)} · ${esc(g.user)}</b><br>${fmt(g.per100, 2)} compras/100<br>IC ${fmt(g.lo, 2)}–${fmt(g.hi, 2)} · n = ${int(g.n)}` }));
+  $("p5-grid").innerHTML = `<div class="legend"><span><i style="background:var(--s1)"></i>≥ carrusel antiguo</span><span><i style="background:var(--s2)"></i>Por debajo</span></div>`;
+  dotCI($("p5-grid"), { rows, domain: [0, Math.ceil(Math.max(...L.grid.map((g) => Math.min(g.hi, 8))))], labelW: 190, W: 460, fmtV: (v) => fmt(v, 1), refLine: D.constants.old_carousel_per100 });
+  const worst = rows[0], best = rows[rows.length - 1];
+  $("p5-dec").innerHTML = `<b class="lbl">Lectura</b><p>Mejor segmento: <b>${esc(best.label)}</b> (${fmt(best.value, 2)}). Peor: <b>${esc(worst.label)}</b> (${fmt(worst.value, 2)}). Mirar n antes de actuar: con pocos cientos de peticiones el IC cubre ±1 compra/100.</p>`;
+  table($("p5-table"), ["Página", "Usuario", "Peticiones", "Compras", "Compras/100", "IC inf.", "IC sup."], L.grid.map((g) => [g.page, g.user, int(g.n), int(g.buys), fmt(g.per100, 2), fmt(g.lo, 2), fmt(g.hi, 2)]));
+}
+
+function renderReliability() {
+  const G = D.log, L = D.live, body = $("p6-body");
+  $("p6-src").innerHTML = `Fuente: <code>calypso_6_2_b/logs/live.log</code> (máquina servidora, hora local del log)` + (L && !L.empty ? ` y <code>team_NN.feedback</code>.` : `. La parte del feedback en vivo está pendiente de export.`);
+  if (!G) { emptyBox(body, "Sin log", "No se encontró calypso_6_2_b/logs/live.log"); return; }
+  const snaps = G.snapshots.filter((s) => s.model === G.last_model), ls = G.last_snapshot;
+  const secs = G.snap_secs_model, smin = Math.min(...secs), smax = Math.max(...secs), smed = [...secs].sort((a, b) => a - b)[Math.floor(secs.length / 2)];
+  body.innerHTML = `<div class="kpis" id="p6-kpis"></div><div class="grid2" style="margin-top:16px"><div><div id="p6-snap"></div><div id="p6-sub" style="margin-top:14px"></div></div><div><div id="p6-err"></div><div class="decision" id="p6-dec" style="margin-top:12px"></div></div></div><div id="p6-ontime" style="margin-top:14px"></div><details><summary>Ver tabla</summary><div id="p6-table"></div></details>`;
+  const reg = ls.regime, regKind = reg === "conservative_fallback" ? "warn" : "ok";
+  $("p6-kpis").innerHTML =
+    `<div class="kpi"><div class="k">Modelo en el log</div><div class="v" style="font-size:22px">${esc(G.last_model)}</div><div class="c">profile=${esc(ls.profile)} · ${int(ls.active)} productos activos</div></div>` +
+    `<div class="kpi"><div class="k">Refresco del snapshot</div><div class="v">${fmt(smed, 0)}<small> s mediana</small></div><div class="c">rango ${fmt(smin, 0)}–${fmt(smax, 0)} s · ${secs.length} snapshots</div><div class="w">Entre refrescos el modelo sirve datos de hasta ~${fmt(smax / 60, 0)} min</div></div>` +
+    `<div class="kpi"><div class="k">Régimen</div><div class="v" style="font-size:20px">${esc(reg)}</div><div class="c">${statusHTML(regKind, regKind === "warn" ? "modo prudente" : "normal")}</div></div>` +
+    `<div class="kpi"><div class="k">Peso del ML (ml_alpha)</div><div class="v">${fmt(ls.alpha, 2)}</div><div class="c">snapshot v${ls.v} · ${esc(ls.ts)}</div></div>`;
+  const W = 760, H = 200, left = 46, right = 14, top = 22, bottom = 30, svgC = $("p6-snap");
+  timeLine(svgC, { pts: snaps.map((s) => ({ t: s.ts, secs: s.secs, v: s.v, alpha: s.alpha, regime: s.regime })), yKey: "secs", domain: [0, Math.ceil(smax / 50) * 50], yFmt: (v) => v + " s", maxGapMin: 15, dots: true,
+    title: `Tiempo de refresco del snapshot · ${G.last_model} (huecos = sin snapshots en el log)`, H: 200, tipFn: (p) => `<b>Snapshot v${p.v}</b> · ${esc(p.t.slice(11))}<br>${fmt(p.secs, 1)} s · ml_alpha ${fmt(p.alpha, 2)}<br>${esc(p.regime)}` });
+  const sub = G.submissions_per_min;
+  if (sub.length) columns($("p6-sub"), { cats: sub.map((s) => s.minute), stacks: [{ name: "Respuestas enviadas", color: "var(--s1)", values: sub.map((s) => s.answers) }],
+    domainMax: Math.max(...sub.map((s) => s.answers)) * 1.1, yFmt: (v) => int(v), title: "Respuestas enviadas por minuto", H: 170, xLabelEvery: Math.ceil(sub.length / 8), xFmt: (c) => c.slice(11) });
+  const hours = [...new Set(G.errors_by_hour.map((e) => e.hour))], kinds = ["RawTree: sin conexión", "RawTree: lectura > timeout", "Fichero bloqueado (Windows)", "Otros"].filter((k) => G.errors_by_hour.some((e) => e.kind === k));
+  const colors = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)"];
+  const errDiv = $("p6-err");
+  errDiv.innerHTML = `<div class="legend">${kinds.map((k, i) => `<span><i style="background:${colors[i]}"></i>${esc(k)}</span>`).join("")}</div>`;
+  const stacks = kinds.map((k, i) => ({ name: k, color: colors[i], values: hours.map((h) => (G.errors_by_hour.find((e) => e.hour === h && e.kind === k) || {}).count || 0) }));
+  const tot = hours.map((_, i) => stacks.reduce((a, s) => a + s.values[i], 0));
+  columns(errDiv, { cats: hours, stacks, domainMax: Math.max(...tot) * 1.1, yFmt: (v) => int(v), title: "Avisos y errores del log por hora (todo el log)", H: 240, W: 440, xFmt: (c) => c.slice(5).replace(" ", " ") + "h" });
+  const totalBy = kinds.map((k, i) => [k, stacks[i].values.reduce((a, b) => a + b, 0)]);
+  $("p6-dec").innerHTML = `<b class="lbl">Lectura</b><p>Los errores son de red hacia RawTree (${totalBy.filter(([k]) => k.startsWith("RawTree")).map(([k, n]) => `${esc(k.split(": ")[1])}: ${n}`).join(", ")}), no del modelo. Cada respuesta que no llega a tiempo la sirve el fallback y cuenta en contra de fiabilidad y conversión.</p>
+    <p>${statusHTML("warn", "Snapshot lento")} ${fmt(smin, 0)}–${fmt(smax, 0)} s por refresco con ml_alpha ${fmt(ls.alpha, 2)} en <code>${esc(reg)}</code>: el ranking reacciona tarde a cambios de stock y precio.</p>`;
+  if (L && !L.empty) {
+    $("p6-ontime").innerHTML = `<div class="legend"><span><i class="line" style="background:var(--s1)"></i>% válidas a tiempo</span><span><i class="dash"></i>Umbral luz verde 90 %</span></div>`;
+    timeLine($("p6-ontime"), { pts: L.series, yKey: "on_time", domain: [Math.min(0.8, ...L.series.map((p) => p.on_time)), 1], yFmt: (v) => fmt(100 * v, 0) + " %", title: "Respuestas válidas a tiempo (feedback en vivo)", H: 220, W: 1160,
+      ref: { value: 0.9, label: "90 %" }, tipFn: (p) => `<b>${esc(p.t.slice(11, 16))}</b><br>a tiempo: <b>${pct(p.on_time)}</b><br>n = ${int(p.n)}` });
+  }
+  table($("p6-table"), ["Hora del log", "Modelo", "Snapshot", "Segundos", "ml_alpha", "Régimen"], G.snapshots.map((s) => [s.ts, s.model, "v" + s.v, fmt(s.secs, 1), fmt(s.alpha, 3), s.regime]));
+}
+
+function render() {
+  if (!D) { document.body.innerHTML = "<p style='padding:30px'>Sin datos: ejecuta <code>python dashboard/build_data.py</code>.</p>"; return; }
+  renderHeader(); renderKPIs(); renderPresets(); renderViewed(); renderAblation(); renderLive(); renderReliability();
+  $("foot").innerHTML = `Generado por <code>dashboard/build_data.py</code> a partir de los ficheros del repo. Offline (hit@10, DCG@10: condicionados a sesiones con compra, simulador propio) y en vivo (compras por 100 peticiones) son unidades distintas y nunca comparten eje. Datos en bruto: <code>dashboard/data.json</code>.`;
+}
+render();
+</script>
+</body>
+</html>

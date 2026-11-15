@@ -46,14 +46,22 @@ class RawTreeClient:
         """Return the calling thread's pooled HTTP session."""
         return self._session()
 
+<<<<<<< HEAD
     def query(self, sql: str, timeout: float | tuple[float, float] = 10.0) -> list[dict[str, Any]]:
+=======
+    def query(self, sql: str, timeout: float = 10.0) -> list[dict[str, Any]]:
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         """Execute a ClickHouse SQL query against RawTree and return rows as dicts."""
         resp = self._session().post(f"{self.api_url}/v1/query", json={"sql": sql}, timeout=timeout)
         if not resp.ok:
             raise RawTreeError(f"Query failed ({resp.status_code}): {resp.text[:300]}")
         return resp.json().get("data", [])
 
+<<<<<<< HEAD
     def query_safe(self, sql: str, timeout: float | tuple[float, float] = 10.0) -> list[dict[str, Any]] | None:
+=======
+    def query_safe(self, sql: str, timeout: float = 10.0) -> list[dict[str, Any]] | None:
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         """Execute a SQL query returning [] for uninitialized tables and None on error."""
         try:
             return self.query(sql, timeout=timeout)
@@ -69,7 +77,11 @@ class RawTreeClient:
         self,
         table: str,
         records: list[dict[str, Any]],
+<<<<<<< HEAD
         timeout: float | tuple[float, float] = 1.0,
+=======
+        timeout: float = 1.0,
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         retries: int = 1,
     ) -> None:
         """Batch-insert JSON records into team_NN.<table>."""
@@ -90,11 +102,19 @@ class RawTreeClient:
             except Exception as exc:
                 last_exc = exc
                 if attempt < retries:
+<<<<<<< HEAD
                     time.sleep(0.01)
         assert last_exc is not None
         raise last_exc
 
     def push_submissions(self, answers: list[dict[str, Any]], timeout: float | tuple[float, float] = (0.9, 1.4)) -> None:
+=======
+                    time.sleep(0.03)
+        assert last_exc is not None
+        raise last_exc
+
+    def push_submissions(self, answers: list[dict[str, Any]], timeout: float = 0.9) -> None:
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         """Insert recommendation answers into team_NN.submissions within tight SLA."""
         self.push_table("submissions", answers, timeout=timeout, retries=1)
 

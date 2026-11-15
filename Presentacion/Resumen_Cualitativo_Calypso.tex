@@ -1,0 +1,95 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\geometry{top=2.3cm, bottom=2.3cm, left=2.3cm, right=2.3cm}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+
+\definecolor{primary}{RGB}{24, 76, 120}
+\definecolor{accent}{RGB}{46, 125, 50}
+\definecolor{lightgray}{RGB}{248, 250, 252}
+\definecolor{bordergray}{RGB}{226, 232, 240}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    filecolor=primary,      
+    urlcolor=primary,
+    pdftitle={Resumen Cualitativo: El Viaje de Calypso},
+    pdfauthor={DataVengers - Team 32}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\textcolor{gray}{\small Datathon FME 2026 $\cdot$ Team 32 (DataVengers)}}
+\rhead{\textcolor{gray}{\small Resumen Cualitativo de Calypso}}
+\cfoot{\thepage}
+
+\title{\vspace{-1.2cm}\textbf{\huge\color{primary} Resumen Cualitativo: El Viaje de Calypso}\\[0.3cm]
+\Large De la Intuición a la Excelencia en Ingeniería de Sistemas y Aprendizaje Automático}
+\author{\textbf{Equipo DataVengers (Team 32)} \\ Datathon FME 2026 $\cdot$ UPC Barcelona $\cdot$ RawTree Challenge}
+\date{15 de noviembre de 2026}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+\begin{tcolorbox}[colback=lightgray, colframe=primary, arc=2mm, boxrule=0.8pt, left=12pt, right=12pt, top=8pt, bottom=8pt]
+\noindent\textbf{\large Sinopsis Narrativa:}\\[0.15cm]
+\textit{El desarrollo del recomendador Calypso por parte de DataVengers no ha sido una mera acumulación de ecuaciones, sino un viaje de madurez técnica y científica. A lo largo de diez iteraciones, el equipo aprendió a sustituir la intuición por el rigor experimental, transformó una caída crítica de disponibilidad en una infraestructura invulnerable y diseñó una solución definitiva capaz de entender tanto la intención inmediata del comprador como las oportunidades invisibles del catálogo frío.}
+\end{tcolorbox}
+
+\vspace{0.4cm}
+
+\section{1. De la Intuición a la Realidad Operativa (Etapas 1 y 2)}
+
+En los primeros compases del reto, el planteamiento fue el intuitivo en cualquier sistema de comercio electrónico: conectar señales lógicas y evidentes (quien consulta este artículo suele adquirir aquel, rescate de carritos abandonados y segmentación por historial de navegación y compra). 
+
+Sin embargo, el entorno de producción en tiempo real nos dio la primera llamada de atención: \textbf{un algoritmo conceptualmente brillante sobre el papel no sirve de nada si la infraestructura se ahoga en el mundo real}. Intentar descargar y analizar perfiles de cientos de miles de usuarios en vivo provocaba bloqueos del intérprete de Python (\textit{GIL freeze}) y amenazaba el límite inflexible de los 3.000 ms. 
+
+\begin{tcolorbox}[colback=white, colframe=bordergray, arc=1mm, boxrule=0.5pt, left=8pt, right=8pt, top=4pt, bottom=4pt]
+\textbf{Lección aprendida:} La inferencia en tiempo real debe ser pura, inmediata y vivir exclusivamente en memoria; la analítica pesada y las agregaciones masivas deben ocurrir en segundo plano y lejos del cliente.
+\end{tcolorbox}
+
+\section{2. La Crisis como Motor de Resiliencia (Etapa 3 a Etapa 4)}
+
+El punto de inflexión del proyecto se produjo en Calypso 2.1. Confiados en haber incorporado Machine Learning de vanguardia con corrección de sesgo posicional (IPS) y algoritmos bandit, un reinicio imprevisto de la máquina destapó una vulnerabilidad crítica: el servicio intentaba procesar cientos de peticiones antiguas que ya habían caducado, provocando un efecto bola de nieve que hundió el cumplimiento del SLA al 10.3\% de \textit{ON TIME}.
+
+En lugar de aplicar un parche superficial, el equipo redefinió por completo la roca estructural del proyecto en la Etapa 4:
+\begin{itemize}[noitemsep]
+    \item \textbf{Memoria atómica en disco:} Dotamos al sistema de capacidad de persistencia inmediata (\texttt{snapshot\_v4\_latest.pkl}), permitiendo recuperarse y responder al 100\% del tráfico en \textbf{menos de 0.4 segundos}.
+    \item \textbf{Inmunidad contra peticiones zombi:} Filtramos de forma estricta las solicitudes con más de 2.400 ms de antigüedad, garantizando que ni un solo ciclo de CPU se malgaste en tráfico caducado.
+    \item \textbf{Arquitectura Slot-Gated:} Blindamos la certeza de los slots 0 al 6 para precisión contrastada, relegando la experimentación UCB a la cola (slots 7 al 9).
+\end{itemize}
+Aquel tropiezo operativo se convirtió en nuestra mayor ventaja competitiva: \textbf{una fiabilidad superior al 99.5\% a prueba de cualquier contingencia}.
+
+\section{3. El Método Científico contra la Falsa Intuición (Calypso 3.1 a 4.2)}
+
+En esta fase, DataVengers desterró las conjeturas e instauró una disciplina férrea basada en \textbf{estudios controlados de ablación}:
+\begin{itemize}
+    \item \textbf{El tropiezo de Calypso 3.1:} Intentar modificar cuatro variables estructurales a la vez hizo caer el rendimiento en picado (del 77.2\% al 74.5\%). La ablación sistemática de la versión 3.1b nos enseñó a aislar cada cambio hasta descubrir una máxima fundamental: \textit{«Nunca recomiendes un producto que no tenga un motivo contrastado para estar ahí»} (penalizar los productos de relleno irrelevantes disparó la efectividad al 79.0\%).
+    \item \textbf{El desengaño del precio en Calypso 4.1:} La intuición nos decía que ordenar los productos recomendados de más barato a más caro atraería más compras. Los datos experimentales nos dieron un golpe demoledor: la ordenación por precio destruía un \textbf{25\% del DCG de compra}. ¿Por qué? Porque el primer puesto del carrusel concentra por sí solo el \textbf{34\% de todas las compras}, y colocar el artículo más barato apartaba de ese escaparate de oro al producto que el modelo sabía que el usuario realmente deseaba. El precio nunca debe dictar la relevancia; solo actúa como desempate entre iguales.
+\end{itemize}
+
+\section{4. Madurez Industrial y Aprendizaje Profundo (Calypso 5.1 a 6.2b)}
+
+La etapa de consolidación transformó a Calypso en un motor industrial de alto nivel:
+\begin{itemize}[noitemsep]
+    \item \textbf{Gobernanza en Caliente (5.1):} Desacoplamos la configuración del código mediante perfiles modulares con recarga en memoria (\textit{hot-reload}), permitiendo reorientar la política comercial del sistema sin interrumpir el servicio ni perder peticiones.
+    \item \textbf{Obsesión por el Primer Impacto (6.2b):} Diseñamos una arquitectura \textit{Dual-Head Slot-1 Precision}, dedicando una cabecera especializada con 64 variables y mitigación de riesgo secuencial para asegurar la excelencia en el primer slot.
+    \item \textbf{Destilación Neuronal y Cold Start Exponencial:} Entrenamos un modelo maestro complejo sobre miles de compras históricas y lo destilamos en una red neuronal compacta y ultrarrápida (Student MLP en NumPy puro). El resultado fue contundente: un \textbf{74.41\% de acierto global} y un colosal \textbf{82.61\% de éxito en Cold Start}, preparando al sistema para dominar el flujo ciego de la ronda final.
+\end{itemize}
+
+\section{5. Conclusión Estratégica}
+
+El valor de \textbf{Calypso 6.2b} no radica en haber acertado a la primera, sino en haber demostrado capacidad para \textbf{fallar rápido, medir con rigor científico, derribar sesgos intuitivos y construir una ingeniería inquebrantable}. 
+
+Llegamos a la final con un recomendador que responde en menos de 2.8 milisegundos, que jamás colapsa ante imprevistos de red y que conecta con precisión matemática lo que el comprador busca con la mejor oferta del catálogo.
+
+\end{document}

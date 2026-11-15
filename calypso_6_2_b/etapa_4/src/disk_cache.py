@@ -6,7 +6,10 @@ import logging
 import os
 import pickle
 import tempfile
+<<<<<<< HEAD
 import time
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +30,11 @@ class _CrossPackageUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
+<<<<<<< HEAD
 def _atomic_dump(path: Path, obj: Any) -> bool:
+=======
+def _atomic_dump(path: Path, obj: Any) -> None:
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
         dir=str(path.parent),
@@ -39,6 +46,7 @@ def _atomic_dump(path: Path, obj: Any) -> bool:
             pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
             handle.flush()
             os.fsync(handle.fileno())
+<<<<<<< HEAD
         last_perm_err: OSError | None = None
         for attempt in range(12):
             try:
@@ -53,6 +61,9 @@ def _atomic_dump(path: Path, obj: Any) -> bool:
         except OSError:
             pass
         return False
+=======
+        os.replace(tmp_name, path)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     except Exception:
         try:
             os.unlink(tmp_name)
