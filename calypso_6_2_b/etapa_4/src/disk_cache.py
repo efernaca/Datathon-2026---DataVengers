@@ -6,6 +6,7 @@ import logging
 import os
 import pickle
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,7 @@ class _CrossPackageUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
-def _atomic_dump(path: Path, obj: Any) -> None:
+def _atomic_dump(path: Path, obj: Any) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
         dir=str(path.parent),
@@ -38,7 +39,20 @@ def _atomic_dump(path: Path, obj: Any) -> None:
             pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(tmp_name, path)
+        last_perm_err: OSError | None = None
+        for attempt in range(12):
+            try:
+                os.replace(tmp_name, path)
+                return True
+            except PermissionError as exc:
+                last_perm_err = exc
+                time.sleep(0.04 * (attempt + 1))
+        logger.warning("Skipping disk cache replace on %s (file locked, e.g. OneDrive): %s", path.name, last_perm_err)
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        return False
     except Exception:
         try:
             os.unlink(tmp_name)

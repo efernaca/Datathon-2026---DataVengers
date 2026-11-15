@@ -1392,6 +1392,40 @@ def _extract_feature_matrix(
     return X, aux
 
 
+def compute_live_signals(
+    live_trend_rows: Iterable[Mapping[str, Any]],
+    active_ids: frozenset[str] | set[str],
+) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    """Compute normalized live trend, live CVR velocity, and buy-equivalent scores."""
+    raw_live: dict[str, float] = {}
+    raw_vel: dict[str, float] = {}
+    live_buys_equiv: dict[str, float] = {}
+    for row in live_trend_rows:
+        pid = str(row.get("product_id") or "").strip()
+        if pid not in active_ids:
+            continue
+        sc = max(_safe_float(row.get("live_score"), 0.0), 0.0)
+        if sc > 0.0:
+            raw_live[pid] = math.log1p(sc)
+        if "live_purchases" in row or "live_carts" in row:
+            lp_cnt = max(_safe_float(row.get("live_purchases"), 0.0), 0.0)
+            lc_cnt = max(_safe_float(row.get("live_carts"), 0.0), 0.0)
+            lv_cnt = max(_safe_float(row.get("live_views"), 0.0), 0.0)
+            eq = lp_cnt + 0.25 * lc_cnt
+            vel_num = lp_cnt * 4.0 + lc_cnt * 1.2
+            if vel_num > 0.0:
+                raw_vel[pid] = math.log1p(vel_num) / math.log1p(lv_cnt + 15.0)
+        else:
+            eq = 0.15 * sc
+        if eq > 0.0:
+            live_buys_equiv[pid] = eq
+    max_live = max(raw_live.values(), default=1.0) or 1.0
+    live_trend_norm = {pid: v / max_live for pid, v in raw_live.items()}
+    max_vel = max(raw_vel.values(), default=1.0) or 1.0
+    live_cvr_velocity = {pid: min(1.0, v / max_vel) for pid, v in raw_vel.items()}
+    return live_trend_norm, live_cvr_velocity, live_buys_equiv
+
+
 def build_snapshot_v4_from_records(
     catalog_rows: Iterable[Mapping[str, Any]],
     *,
@@ -1457,31 +1491,10 @@ def build_snapshot_v4_from_records(
     max_pop = max(raw_pop.values(), default=1.0) or 1.0
     log_pop_norm = {pid: v / max_pop for pid, v in raw_pop.items()}
 
-    raw_live: dict[str, float] = {}
-    raw_vel: dict[str, float] = {}
-    live_buys_equiv: dict[str, float] = {}
-    for row in live_trend_rows:
-        pid = str(row.get("product_id") or "").strip()
-        if pid in active_ids:
-            sc = max(_safe_float(row.get("live_score"), 0.0), 0.0)
-            if sc > 0.0:
-                raw_live[pid] = math.log1p(sc)
-            if "live_purchases" in row or "live_carts" in row:
-                lp_cnt = max(_safe_float(row.get("live_purchases"), 0.0), 0.0)
-                lc_cnt = max(_safe_float(row.get("live_carts"), 0.0), 0.0)
-                lv_cnt = max(_safe_float(row.get("live_views"), 0.0), 0.0)
-                eq = lp_cnt + 0.25 * lc_cnt
-                vel_num = lp_cnt * 4.0 + lc_cnt * 1.2
-                if vel_num > 0.0:
-                    raw_vel[pid] = math.log1p(vel_num) / math.log1p(lv_cnt + 15.0)
-            else:
-                eq = 0.15 * sc
-            if eq > 0.0:
-                live_buys_equiv[pid] = eq
-    max_live = max(raw_live.values(), default=1.0) or 1.0
-    live_trend_norm = {pid: v / max_live for pid, v in raw_live.items()}
-    max_vel = max(raw_vel.values(), default=1.0) or 1.0
-    live_cvr_velocity = {pid: min(1.0, v / max_vel) for pid, v in raw_vel.items()}
+    live_trend_norm, live_cvr_velocity, live_buys_equiv = compute_live_signals(
+        live_trend_rows,
+        active_ids,
+    )
 
     mix_buys: dict[str, float] = {
         pid: hist_purchases.get(pid, 0.0) + wp.live_pop_mix_weight * live_buys_equiv.get(pid, 0.0)

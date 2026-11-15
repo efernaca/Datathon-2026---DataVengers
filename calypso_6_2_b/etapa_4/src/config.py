@@ -72,10 +72,10 @@ class ConfigV4:
     weights_profile_path: str = "weights_profile.json"
 
     # SLA-hardened Fast / Live / Stock cadence timings
-    poll_interval_s: float = 0.12
-    stock_refresh_interval_s: float = 1.5
-    live_refresh_interval_s: float = 15.0
-    static_refresh_interval_s: float = 900.0
+    poll_interval_s: float = 0.06
+    stock_refresh_interval_s: float = 2.5
+    live_refresh_interval_s: float = 45.0
+    static_refresh_interval_s: float = 14400.0
     max_requests_per_batch: int = 25
     max_request_age_ms: int = 2400
     cache_dir: str = "cache"

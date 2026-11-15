@@ -174,6 +174,67 @@ class TestStage4Hardening(unittest.TestCase):
         )
         self.assertGreaterEqual(float(rep_sg.loc[("WARM", "sg"), "hit_rate_buy@10"]), 0.83)
 
+    def test_async_push_and_incremental_live_refresh(self) -> None:
+        import threading
+        import time as _t
+        from src.serve import Stage4BackgroundUpdater
+
+        snap = self.syn["snap_v4"]
+        store = StateStore(snap)
+        req_rows = self.syn["df_test"].to_dict(orient="records")[:3]
+        flaky_client = _FlakyClient(req_rows)
+        loop = CalypsoFastLoopV4(
+            client=flaky_client,  # type: ignore[arg-type]
+            store=store,
+            recommender=CalypsoRecommenderV4(ConfigV4()),
+            config=ConfigV4(),
+        )
+        try:
+            # First async dispatch fails inside worker -> cleared from _in_flight, _seen stays empty
+            pulled1, disp1 = loop.step_async()
+            self.assertEqual((pulled1, disp1), (3, 3))
+            loop._push_pool.shutdown(wait=True)
+            self.assertEqual(len(flaky_client.pushed_batches), 0)
+
+            # Re-create pool & retry async dispatch -> succeeds and commits _seen
+            from concurrent.futures import ThreadPoolExecutor
+            loop._push_pool = ThreadPoolExecutor(max_workers=2)
+            pulled2, disp2 = loop.step_async()
+            self.assertEqual((pulled2, disp2), (3, 3))
+            loop._push_pool.shutdown(wait=True)
+            self.assertEqual(len(flaky_client.pushed_batches), 1)
+            total_sent, last_batch = loop.drain_async_stats()
+            self.assertEqual((total_sent, last_batch), (3, 3))
+        finally:
+            loop.close()
+
+        # Incremental live update preserves EASE/SVD/ranker without heavy rebuild
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache = DiskCache(Path(tmp_dir))
+            updater = Stage4BackgroundUpdater(
+                client=flaky_client,  # type: ignore[arg-type]
+                store=store,
+                config=ConfigV4(cache_dir=tmp_dir),
+                cache=cache,
+                stop_event=threading.Event(),
+                weights_profile=snap.weights_profile,
+            )
+            t0 = _t.perf_counter()
+            updated = updater._refresh_live_incremental(
+                snap,
+                upd_cat=[],
+                oos_set=snap.out_of_stock_ids,
+                trend_rows=[],
+                live_bought_rows=[],
+                feedback_rows=[],
+                cart_state=({}, {}, {}),
+            )
+            dt_ms = (_t.perf_counter() - t0) * 1000.0
+            self.assertIs(updated.ranker, snap.ranker)
+            self.assertIs(updated.ease_neighbors, snap.ease_neighbors)
+            self.assertEqual(updated.version, snap.version + 1)
+            self.assertLess(dt_ms, 500.0)
+
 
 if __name__ == "__main__":
     unittest.main()

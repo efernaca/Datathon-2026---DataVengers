@@ -1,16 +1,16 @@
 {
-  "pid": 26124,
-  "model_name": "calypso 6.2a",
+  "pid": 20568,
+  "model_name": "calypso 6.2b",
   "model_version": "calypso-6.2b",
-  "folder": "calypso_6_2_a",
+  "folder": "calypso_6_2_b",
   "profile": "conversion_first",
-  "started_at": 1794727860.2224634,
-  "last_heartbeat_ts": 1794729392.4727757,
+  "started_at": 1794734847.010442,
+  "last_heartbeat_ts": 1794740588.6165013,
   "ready": true,
-  "snapshot_version": 11,
-  "active_products": 5564,
+  "snapshot_version": 957,
+  "active_products": 5867,
   "ml_alpha": 0.45,
   "regime": "conservative_fallback",
-  "submitted_total": 3574,
-  "last_batch_size": 8
+  "submitted_total": 16352,
+  "last_batch_size": 1
 }
