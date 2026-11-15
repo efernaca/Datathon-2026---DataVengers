@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataVengers · Tablero de decisiones RawTree (Calypso 6.2b)</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f3f0; --surface: #fcfcfb; --border: #e3e2dd;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #7c7b76; --grid: #e9e8e3; --axis: #b9b8b2;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --neutral: #a9a8a2;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --info: #2a78d6;
+  --band: rgba(42,120,214,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --border: #2e2e2b;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #94938c; --grid: #2a2a27; --axis: #55544f;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --neutral: #6c6b66;
+    --band: rgba(57,135,229,.22);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --border: #2e2e2b;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #94938c; --grid: #2a2a27; --axis: #55544f;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --neutral: #6c6b66;
+  --band: rgba(57,135,229,.22);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 60px; }
+header h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+header .sub { color: var(--text-2); margin: 0 0 16px; }
+.meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.meta button { font: inherit; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.formula { display: flex; gap: 2px; margin: 14px 0 6px; border-radius: 6px; overflow: hidden; }
+.formula div { padding: 8px 10px; color: #fff; font-weight: 600; font-size: 13px; }
+.formula small { display: block; font-weight: 400; opacity: .9; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-top: 16px; }
+.card h2 { font-size: 16px; margin: 0; }
+.card .q { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.src { color: var(--muted); font-size: 12px; margin: 4px 0 12px; }
+.src code, p code, li code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.decision { border-left: 3px solid var(--text); padding: 4px 0 4px 12px; }
+.decision b.lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); margin-bottom: 2px; }
+.decision p { margin: 0 0 8px; }
+.evidence { color: var(--text-2); font-size: 13px; }
+.evidence li { margin-bottom: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.kpi .k { font-size: 12px; color: var(--text-2); }
+.kpi .v { font-size: 30px; font-weight: 650; letter-spacing: -.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 14px; font-weight: 500; color: var(--text-2); }
+.kpi .c { font-size: 12px; color: var(--muted); }
+.kpi .w { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+.status i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; margin-top: 10px; }
+.check { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.check .t { font-weight: 600; margin-top: 4px; }
+.check .d { color: var(--text-2); margin-top: 3px; }
+.ico { font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; color: #fff; flex: none; }
+.empty { border: 1px dashed var(--axis); border-radius: 8px; padding: 18px; color: var(--text-2); background: var(--bg); }
+.empty pre { margin: 8px 0 0; font-size: 12px; white-space: pre-wrap; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); margin: 2px 0 6px; flex-wrap: wrap; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend i.line { height: 2px; width: 14px; border-radius: 0; }
+.legend i.dash { height: 0; width: 14px; border-top: 2px dashed var(--muted); background: none !important; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--text-2); font-size: 11px; font-family: inherit; }
+svg .ttl { fill: var(--text); font-weight: 600; font-size: 12px; }
+svg .val { fill: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .gridl { stroke: var(--grid); stroke-width: 1; }
+svg .axisl { stroke: var(--axis); stroke-width: 1; }
+svg .hit { fill: transparent; cursor: default; }
+details { margin-top: 10px; font-size: 12px; color: var(--text-2); }
+details summary { cursor: pointer; }
+table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+th, td { border-bottom: 1px solid var(--border); padding: 3px 10px 3px 0; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text); font-weight: 600; }
+.subgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .subgrid { grid-template-columns: 1fr; } }
+.subgrid h3, .grid2 h3 { font-size: 13px; margin: 0 0 4px; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  opacity: 0; transition: opacity .08s; max-width: 280px; }
+#tip b { font-weight: 600; }
+footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tablero de decisiones · Recomendador RawTree (Calypso 6.2b)</h1>
+    <p class="sub">DataVengers · Side Challenge Tukey. Cada panel responde a una pregunta: evidencia → decisión tomada.</p>
+    <div class="meta" id="meta"></div>
+    <div class="formula" id="formula" aria-label="Fórmula de puntuación"></div>
+  </header>
+
+  <section class="card" id="checks-card">
+    <div class="q"><h2>Antes de enseñar nada: incoherencias detectadas</h2><span class="tag">auto-comprobado al construir</span></div>
+    <div class="checks" id="checks"></div>
+  </section>
+
+  <section class="card" id="p1">
+    <div class="q"><h2>1 · ¿Cómo vamos en la final?</h2><span class="tag">Conversión 50 · Cold start 10 · Fiabilidad 10</span></div>
+    <p class="src" id="p1-src"></p>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="card" id="p2">
+    <div class="q"><h2>2 · ¿Qué preset desplegamos en la final?</h2><span class="tag">Conversión · Cold start</span></div>
+    <p class="src">Fuente: <code>calypso_6_2_b/preset_comparison_results.json</code>. hit@10 de compra (offline, solo sesiones con compra), con IC 95 % de Wilson. Tamaños de muestra inferidos de las fracciones del JSON.</p>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Preset recomendado</span><span><i style="background:var(--neutral)"></i>Resto de presets</span><span>Barra = IC 95 %</span></div>
+    <div class="subgrid" id="p2-chart"></div>
+    <div class="grid2" style="margin-top:14px">
+      <ul class="evidence" id="p2-ev"></ul>
+      <div class="decision" id="p2-dec"></div>
+    </div>
+    <details><summary>Ver tabla</summary><div id="p2-table"></div></details>
+  </section>
+
+  <section class="card" id="p3">
+    <div class="q"><h2>3 · ¿Fijamos arriba los productos que el usuario ya ha visto?</h2><span class="tag">Conversión</span></div>
+    <p class="src" id="p3-src"></p>
+    <div class="grid2">
+      <div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Producto ya visto en la sesión</span><span><i style="background:var(--s2)"></i>Producto no visto</span><span>Barra fina = IC 95 %</span></div>
+        <div id="p3-chart"></div>
+      </div>
+      <div>
+        <ul class="evidence" id="p3-ev"></ul>
+        <div class="decision" id="p3-dec"></div>
+      </div>
+    </div>
+    <details><summary>Ver tabla</summary><div id="p3-table"></div></details>
+  </section>
+
+  <section class="card" id="p4">
+    <div class="q"><h2>4 · ¿Reglas de negocio rígidas o competir por score?</h2><span class="tag">Conversión</span></div>
+    <p class="src" id="p4-src"></p>
+    <div class="grid2">
+      <div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Media de 5 semillas</span><span>Barra = mín–máx entre semillas</span><span><i class="dash"></i>Sin cambio frente a 3.1b</span></div>
+        <div id="p4-chart"></div>
+      </div>
+      <div>
+        <ul class="evidence" id="p4-ev"></ul>
+        <div class="decision" id="p4-dec"></div>
+      </div>
+    </div>
+    <details><summary>Ver tabla</summary><div id="p4-table"></div></details>
+  </section>
+
+  <section class="card" id="p5">
+    <div class="q"><h2>5 · ¿Dónde ganamos y dónde perdemos en vivo?</h2><span class="tag">Conversión · Cold start</span></div>
+    <p class="src" id="p5-src"></p>
+    <div id="p5-body"></div>
+  </section>
+
+  <section class="card" id="p6">
+    <div class="q"><h2>6 · ¿Es fiable el sistema?</h2><span class="tag">Fiabilidad 10</span></div>
+    <p class="src" id="p6-src"></p>
+    <div id="p6-body"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const D = {"built_at": "2026-11-15 09:29", "constants": {"old_carousel_per100": 1.4, "sla_ms": 3000, "weights": {"conversion": 50, "cold_start": 10, "reliability": 10}}, "presets": {"rows": [{"preset": "conversion_first", "segment": "ALL", "hit": 0.6924731182795699, "n": 465, "lo": 0.6490941985154847, "hi": 0.7326978608922129}, {"preset": "conversion_first", "segment": "WARM", "hit": 0.7003058103975535, "n": 327, "lo": 0.6485590533212077, "hi": 0.7474008259684585}, {"preset": "conversion_first", "segment": "COLD", "hit": 0.6739130434782609, "n": 138, "lo": 0.5919114866918774, "hi": 0.7464941714507266}, {"preset": "conversion_first", "segment": "COLD_ITEM", "hit": 0.6951219512195121, "n": 82, "lo": 0.5886121722656341, "hi": 0.7841674590553105}, {"preset": "cheap_boost", "segment": "ALL", "hit": 0.6774193548387096, "n": 465, "lo": 0.6336259796537399, "hi": 0.7183052482919031}, {"preset": "cheap_boost", "segment": "WARM", "hit": 0.6788990825688074, "n": 327, "lo": 0.6264671647008316, "hi": 0.7271763916113131}, {"preset": "cheap_boost", "segment": "COLD", "hit": 0.6739130434782609, "n": 138, "lo": 0.5919114866918774, "hi": 0.7464941714507266}, {"preset": "cheap_boost", "segment": "COLD_ITEM", "hit": 0.7073170731707317, "n": 82, "lo": 0.6013403571873552, "hi": 0.7947380010911484}, {"preset": "product_profile_focus", "segment": "ALL", "hit": 0.7032258064516129, "n": 465, "lo": 0.6601744371497698, "hi": 0.7429467875879667}, {"preset": "product_profile_focus", "segment": "WARM", "hit": 0.654434250764526, "n": 327, "lo": 0.6013654967163027, "hi": 0.7039165476215314}, {"preset": "product_profile_focus", "segment": "COLD", "hit": 0.8188405797101449, "n": 138, "lo": 0.7462349631812843, "hi": 0.8741754100801564}, {"preset": "product_profile_focus", "segment": "COLD_ITEM", "hit": 0.9390243902439024, "n": 82, "lo": 0.8650777373754472, "hi": 0.9736764330966781}, {"preset": "calibrated_m3", "segment": "ALL", "hit": 0.7505376344086021, "n": 465, "lo": 0.7092629836846699, "hi": 0.7877065685052381}, {"preset": "calibrated_m3", "segment": "WARM", "hit": 0.7522935779816514, "n": 327, "lo": 0.7027552504090843, "hi": 0.7959728418259916}, {"preset": "calibrated_m3", "segment": "COLD", "hit": 0.7463768115942029, "n": 138, "lo": 0.6677913148882455, "hi": 0.8116167008137769}, {"preset": "calibrated_m3", "segment": "COLD_ITEM", "hit": 0.8048780487804879, "n": 82, "lo": 0.7062960982698093, "hi": 0.8761720756691668}], "sizes": {"ALL": 465, "WARM": 327, "COLD": 138, "COLD_ITEM": 82}, "ranking": [{"preset": "calibrated_m3", "obj": 0.7223039552382858, "dcg_all": 0.44854006584804956, "latency_ms": 1.076018916666423, "snips": 0.24222585924713586}, {"preset": "product_profile_focus", "obj": 0.692183309799428, "dcg_all": 0.41910565632067404, "latency_ms": 0.8072503333335135, "snips": 0.23440453686200377}, {"preset": "conversion_first", "obj": 0.6900702158033853, "dcg_all": 0.4281910419252631, "latency_ms": 0.8182894166664786, "snips": 0.22662889518413598}, {"preset": "cheap_boost", "obj": 0.6771509623461867, "dcg_all": 0.40770750889589125, "latency_ms": 0.9726567500001693, "snips": 0.22641509433962265}], "winner": "calibrated_m3"}, "viewed": {"files": 43, "n_requests": 189935, "n_purchases": 19897, "purchase_share": 0.10475689051517624, "share_req_with_viewed_shown": 0.14271724537341723, "share_buys_of_viewed": 0.15786299442126953, "or_product_slot": 8.163707334519314, "or_slot": 12.226367809579592, "observed": 3141.0, "expected": 484.50785050770935, "rows": [{"slot": 0, "viewed": 0, "n": 185453, "buys": 5109, "rate": 0.027548758984756245, "lo": 0.026813544121091645, "hi": 0.028303546797812475}, {"slot": 0, "viewed": 1, "n": 4482, "buys": 1290, "rate": 0.2878179384203481, "lo": 0.2747492353935062, "hi": 0.3012500598112107}, {"slot": 1, "viewed": 0, "n": 186222, "buys": 2750, "rate": 0.014767320724726403, "lo": 0.014229395712689148, "hi": 0.015325265191042268}, {"slot": 1, "viewed": 1, "n": 3713, "buys": 591, "rate": 0.1591704820899542, "lo": 0.14775620567303663, "hi": 0.1712892979072074}, {"slot": 2, "viewed": 0, "n": 186662, "buys": 2053, "rate": 0.010998489247945484, "lo": 0.010535307045368711, "hi": 0.011481798841667881}, {"slot": 2, "viewed": 1, "n": 3273, "buys": 383, "rate": 0.11701802627558815, "lo": 0.10645183126728484, "hi": 0.12848219789054813}, {"slot": 3, "viewed": 0, "n": 186969, "buys": 1512, "rate": 0.008086902106766363, "lo": 0.007690912588232593, "hi": 0.008503105612964816}, {"slot": 3, "viewed": 1, "n": 2966, "buys": 254, "rate": 0.0856372218476062, "lo": 0.07609473596717208, "hi": 0.09625169489971323}, {"slot": 4, "viewed": 0, "n": 187300, "buys": 1210, "rate": 0.006460224239188467, "lo": 0.00610737892932298, "hi": 0.0068333145412160685}, {"slot": 4, "viewed": 1, "n": 2635, "buys": 200, "rate": 0.07590132827324478, "lo": 0.06639495430527907, "hi": 0.08664249970484415}, {"slot": 5, "viewed": 0, "n": 187448, "buys": 1071, "rate": 0.005713584567453374, "lo": 0.00538235439496924, "hi": 0.006065074350910842}, {"slot": 5, "viewed": 1, "n": 2487, "buys": 127, "rate": 0.051065540812223566, "lo": 0.043085243350001357, "hi": 0.060430612495669445}, {"slot": 6, "viewed": 0, "n": 187545, "buys": 890, "rate": 0.004745527740009065, "lo": 0.0044444725058989205, "hi": 0.005066871764648683}, {"slot": 6, "viewed": 1, "n": 2390, "buys": 111, "rate": 0.046443514644351466, "lo": 0.038709691151723145, "hi": 0.05563305901186328}, {"slot": 7, "viewed": 0, "n": 187658, "buys": 808, "rate": 0.004305705059203444, "lo": 0.004019432110708961, "hi": 0.004612272588495057}, {"slot": 7, "viewed": 1, "n": 2277, "buys": 72, "rate": 0.03162055335968379, "lo": 0.02518472668298346, "hi": 0.03963415420729844}, {"slot": 8, "viewed": 0, "n": 187723, "buys": 711, "rate": 0.0037874954054644343, "lo": 0.0035195922155864734, "hi": 0.004075707358238561}, {"slot": 8, "viewed": 1, "n": 2212, "buys": 55, "rate": 0.024864376130198915, "lo": 0.019152520542896376, "hi": 0.032223715014735546}, {"slot": 9, "viewed": 0, "n": 187864, "buys": 642, "rate": 0.0034173657539496656, "lo": 0.0031634291393384997, "hi": 0.003691611026301004}, {"slot": 9, "viewed": 1, "n": 2071, "buys": 58, "rate": 0.028005794302269436, "lo": 0.02172675066672316, "hi": 0.03603264648436538}], "pages": [{"page": "category", "rate_viewed": 0.11021031606156738, "rate_not": 0.010460871476149939, "ratio": 10.535481323218553, "n_viewed": 8511}, {"page": "product", "rate_viewed": 0.11017754438609652, "rate_not": 0.010419182964681431, "ratio": 10.574489838557627, "n_viewed": 19995}]}, "ablation": {"variants": ["A_3.1b", "B_4.1_completo", "3.1b + carrito_activo", "3.1b + carrito_olvidado", "3.1b + carrito_ambos", "3.1b + precio_asc", "3.1b + recurrentes", "4.1 - precio_asc"], "seeds": ["123", "2024", "42", "7", "99"], "rows": [{"variant": "A_3.1b", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7905716147469579, "sd": 0.01781162549980148, "min": 0.7657657657657657, "max": 0.8158482142857143, "seeds": 5}, {"variant": "A_3.1b", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.485082957758803, "sd": 0.00880063172814095, "min": 0.4712606171358273, "max": 0.49273330634302775, "seeds": 5}, {"variant": "A_3.1b", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9020773377293574, "sd": 0.020010758749443695, "min": 0.8810916179337231, "max": 0.9289940828402367, "seeds": 5}, {"variant": "A_3.1b", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.5982307075274801, "sd": 0.012705353147733455, "min": 0.5873645501961259, "max": 0.6175779774463831, "seeds": 5}, {"variant": "A_3.1b", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.634249755411757, "sd": 0.025246636817981068, "min": 0.608, "max": 0.6695402298850575, "seeds": 5}, {"variant": "A_3.1b", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.32590409261263925, "sd": 0.0101986044221499, "min": 0.3104748203346572, "max": 0.3347474159524712, "seeds": 5}, {"variant": "B_4.1_completo", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7871808490795642, "sd": 0.01859435542099044, "min": 0.7601351351351351, "max": 0.8113839285714286, "seeds": 5}, {"variant": "B_4.1_completo", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.39414268275786124, "sd": 0.009591582889797907, "min": 0.377708924216315, "max": 0.4016860204187243, "seeds": 5}, {"variant": "B_4.1_completo", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9050664946174468, "sd": 0.0195073353432638, "min": 0.8832684824902723, "max": 0.9289940828402367, "seeds": 5}, {"variant": "B_4.1_completo", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.4815094624228157, "sd": 0.008172613409550703, "min": 0.4717378102709093, "max": 0.49237665579815026, "seeds": 5}, {"variant": "B_4.1_completo", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.621615304493172, "sd": 0.023068514215291405, "min": 0.5866666666666667, "max": 0.646551724137931, "seeds": 5}, {"variant": "B_4.1_completo", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.2710905614398129, "sd": 0.017326055664060626, "min": 0.24907740809362997, "max": 0.29564920634737085, "seeds": 5}, {"variant": "3.1b + carrito_activo", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.790555132395799, "sd": 0.017886682534657146, "min": 0.7657657657657657, "max": 0.8158482142857143, "seeds": 5}, {"variant": "3.1b + carrito_activo", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.48450831475369666, "sd": 0.006057303711461904, "min": 0.474272681138249, "max": 0.4893606601366568, "seeds": 5}, {"variant": "3.1b + carrito_activo", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9024370499595733, "sd": 0.020165550123788303, "min": 0.8810916179337231, "max": 0.9289940828402367, "seeds": 5}, {"variant": "3.1b + carrito_activo", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.5999236180030222, "sd": 0.01009083305020715, "min": 0.5902431115155472, "max": 0.6143351241631805, "seeds": 5}, {"variant": "3.1b + carrito_activo", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.6336957387912585, "sd": 0.0248147085703599, "min": 0.608, "max": 0.6695402298850575, "seeds": 5}, {"variant": "3.1b + carrito_activo", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.32214654853891267, "sd": 0.009185069965338678, "min": 0.3085608479050083, "max": 0.33049978842507083, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7892122928206845, "sd": 0.019617721394119377, "min": 0.7635135135135135, "max": 0.8180803571428571, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.4775688327529533, "sd": 0.008540507133782793, "min": 0.46234122617423346, "max": 0.48243793260387696, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9039224415219185, "sd": 0.019266560167812988, "min": 0.8832684824902723, "max": 0.9270216962524654, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.5935044024266887, "sd": 0.01197558615234723, "min": 0.5821100052258152, "max": 0.6112567960194922, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.628250930309073, "sd": 0.025002783830413346, "min": 0.5973333333333334, "max": 0.6637931034482759, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.31451833921604166, "sd": 0.01093557437686541, "min": 0.29680265533577443, "max": 0.3236779372914827, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7871808490795642, "sd": 0.01859435542099044, "min": 0.7601351351351351, "max": 0.8113839285714286, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.47989068118498546, "sd": 0.008284801888665677, "min": 0.46612670926694116, "max": 0.48782877355606497, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9050664946174468, "sd": 0.0195073353432638, "min": 0.8832684824902723, "max": 0.9289940828402367, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.600544229368664, "sd": 0.011494842303469512, "min": 0.5847256212737265, "max": 0.6135785388458854, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.621615304493172, "sd": 0.023068514215291405, "min": 0.5866666666666667, "max": 0.646551724137931, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.31014240927720305, "sd": 0.010731782380081007, "min": 0.2924499442447775, "max": 0.3205606463780879, "seeds": 5}, {"variant": "3.1b + precio_asc", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7905716147469579, "sd": 0.01781162549980148, "min": 0.7657657657657657, "max": 0.8158482142857143, "seeds": 5}, {"variant": "3.1b + precio_asc", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.36511421385174897, "sd": 0.009981875260903685, "min": 0.3541542062702242, "max": 0.37622348829309166, "seeds": 5}, {"variant": "3.1b + precio_asc", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9020773377293574, "sd": 0.020010758749443695, "min": 0.8810916179337231, "max": 0.9289940828402367, "seeds": 5}, {"variant": "3.1b + precio_asc", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.41553671712645357, "sd": 0.013147215261850583, "min": 0.39625205212021597, "max": 0.4319690659016926, "seeds": 5}, {"variant": "3.1b + precio_asc", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.634249755411757, "sd": 0.025246636817981068, "min": 0.608, "max": 0.6695402298850575, "seeds": 5}, {"variant": "3.1b + precio_asc", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.2943841084090638, "sd": 0.022634979710206643, "min": 0.2671191868833651, "max": 0.32292348516605174, "seeds": 5}, {"variant": "3.1b + recurrentes", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7905716147469579, "sd": 0.01781162549980148, "min": 0.7657657657657657, "max": 0.8158482142857143, "seeds": 5}, {"variant": "3.1b + recurrentes", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.485082957758803, "sd": 0.00880063172814095, "min": 0.4712606171358273, "max": 0.49273330634302775, "seeds": 5}, {"variant": "3.1b + recurrentes", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9020773377293574, "sd": 0.020010758749443695, "min": 0.8810916179337231, "max": 0.9289940828402367, "seeds": 5}, {"variant": "3.1b + recurrentes", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.5982307075274801, "sd": 0.012705353147733455, "min": 0.5873645501961259, "max": 0.6175779774463831, "seeds": 5}, {"variant": "3.1b + recurrentes", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.634249755411757, "sd": 0.025246636817981068, "min": 0.608, "max": 0.6695402298850575, "seeds": 5}, {"variant": "3.1b + recurrentes", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.32590409261263925, "sd": 0.0101986044221499, "min": 0.3104748203346572, "max": 0.3347474159524712, "seeds": 5}, {"variant": "4.1 - precio_asc", "segment": "ALL", "metric": "hit_rate_buy@10", "mean": 0.7871808490795642, "sd": 0.01859435542099044, "min": 0.7601351351351351, "max": 0.8113839285714286, "seeds": 5}, {"variant": "4.1 - precio_asc", "segment": "ALL", "metric": "dcg_buy@10", "mean": 0.47989068118498546, "sd": 0.008284801888665677, "min": 0.46612670926694116, "max": 0.48782877355606497, "seeds": 5}, {"variant": "4.1 - precio_asc", "segment": "WARM", "metric": "hit_rate_buy@10", "mean": 0.9050664946174468, "sd": 0.0195073353432638, "min": 0.8832684824902723, "max": 0.9289940828402367, "seeds": 5}, {"variant": "4.1 - precio_asc", "segment": "WARM", "metric": "dcg_buy@10", "mean": 0.600544229368664, "sd": 0.011494842303469512, "min": 0.5847256212737265, "max": 0.6135785388458854, "seeds": 5}, {"variant": "4.1 - precio_asc", "segment": "COLD_START", "metric": "hit_rate_buy@10", "mean": 0.621615304493172, "sd": 0.023068514215291405, "min": 0.5866666666666667, "max": 0.646551724137931, "seeds": 5}, {"variant": "4.1 - precio_asc", "segment": "COLD_START", "metric": "dcg_buy@10", "mean": 0.31014240927720305, "sd": 0.010731782380081007, "min": 0.2924499442447775, "max": 0.3205606463780879, "seeds": 5}], "deltas_dcg_all": [{"variant": "A_3.1b", "mean": 0.0, "min": 0.0, "max": 0.0, "seeds": 5}, {"variant": "B_4.1_completo", "mean": -0.09094027500094173, "min": -0.09440238683854135, "max": -0.08024917568899803, "seeds": 5}, {"variant": "3.1b + carrito_activo", "mean": -0.0005746430051063566, "min": -0.004145162164041538, "max": 0.0030120640024217105, "seeds": 5}, {"variant": "3.1b + carrito_olvidado", "mean": -0.007514125005849692, "min": -0.011824924219742683, "max": -0.0004167473426925361, "seeds": 5}, {"variant": "3.1b + carrito_ambos", "mean": -0.005192276573817533, "min": -0.013288543386155482, "max": 0.005893577448342624, "seeds": 5}, {"variant": "3.1b + precio_asc", "mean": -0.11996874390705406, "min": -0.13205683256337686, "max": -0.11593641561088153, "seeds": 5}, {"variant": "3.1b + recurrentes", "mean": 0.0, "min": 0.0, "max": 0.0, "seeds": 5}, {"variant": "4.1 - precio_asc", "mean": -0.005192276573817533, "min": -0.013288543386155482, "max": 0.005893577448342624, "seeds": 5}]}, "log": {"snapshots": [{"ts": "2026-11-14 22:17:36", "model": "calypso-5.1", "profile": "conversion_first", "v": 1, "secs": 63.02, "active": 5263, "alpha": 0.064, "regime": "cold_surge"}, {"ts": "2026-11-14 22:18:25", "model": "calypso-5.1", "profile": "conversion_first", "v": 2, "secs": 35.16, "active": 5263, "alpha": 0.06, "regime": "cold_surge"}, {"ts": "2026-11-14 22:19:15", "model": "calypso-5.1", "profile": "conversion_first", "v": 5, "secs": 32.15, "active": 5263, "alpha": 0.064, "regime": "cold_surge"}, {"ts": "2026-11-14 22:20:04", "model": "calypso-5.1", "profile": "conversion_first", "v": 8, "secs": 30.62, "active": 5263, "alpha": 0.063, "regime": "cold_surge"}, {"ts": "2026-11-14 22:20:52", "model": "calypso-5.1", "profile": "conversion_first", "v": 11, "secs": 30.32, "active": 5263, "alpha": 0.067, "regime": "cold_surge"}, {"ts": "2026-11-14 22:21:41", "model": "calypso-5.1", "profile": "conversion_first", "v": 14, "secs": 29.86, "active": 5263, "alpha": 0.066, "regime": "cold_surge"}, {"ts": "2026-11-14 22:22:28", "model": "calypso-5.1", "profile": "conversion_first", "v": 17, "secs": 29.24, "active": 5263, "alpha": 0.064, "regime": "cold_surge"}, {"ts": "2026-11-14 22:23:42", "model": "calypso-5.1", "profile": "conversion_first", "v": 21, "secs": 28.96, "active": 5263, "alpha": 0.067, "regime": "cold_surge"}, {"ts": "2026-11-14 22:24:42", "model": "calypso-5.1", "profile": "conversion_first", "v": 25, "secs": 21.4, "active": 5263, "alpha": 0.064, "regime": "cold_surge"}, {"ts": "2026-11-14 22:25:28", "model": "calypso-5.1", "profile": "conversion_first", "v": 28, "secs": 29.5, "active": 5263, "alpha": 0.06, "regime": "cold_surge"}, {"ts": "2026-11-14 22:26:08", "model": "calypso-5.1", "profile": "conversion_first", "v": 31, "secs": 24.45, "active": 5263, "alpha": 0.059, "regime": "cold_surge"}, {"ts": "2026-11-14 22:27:00", "model": "calypso-5.1", "profile": "conversion_first", "v": 34, "secs": 37.25, "active": 5263, "alpha": 0.059, "regime": "cold_surge"}, {"ts": "2026-11-14 22:28:01", "model": "calypso-5.1", "profile": "conversion_first", "v": 37, "secs": 40.24, "active": 5263, "alpha": 0.06, "regime": "cold_surge"}, {"ts": "2026-11-14 22:42:56", "model": "calypso-5.1", "profile": "conversion_first", "v": 1, "secs": 65.42, "active": 5263, "alpha": 0.087, "regime": "cold_surge"}, {"ts": "2026-11-14 22:43:33", "model": "calypso-5.1", "profile": "conversion_first", "v": 2, "secs": 26.05, "active": 5263, "alpha": 0.086, "regime": "cold_surge"}, {"ts": "2026-11-14 22:44:14", "model": "calypso-5.1", "profile": "conversion_first", "v": 5, "secs": 25.59, "active": 5263, "alpha": 0.087, "regime": "cold_surge"}, {"ts": "2026-11-14 22:44:51", "model": "calypso-5.1", "profile": "conversion_first", "v": 8, "secs": 21.76, "active": 5263, "alpha": 0.085, "regime": "cold_surge"}, {"ts": "2026-11-14 22:45:28", "model": "calypso-5.1", "profile": "conversion_first", "v": 11, "secs": 21.95, "active": 5263, "alpha": 0.08, "regime": "cold_surge"}, {"ts": "2026-11-14 22:46:09", "model": "calypso-5.1", "profile": "conversion_first", "v": 14, "secs": 26.09, "active": 5263, "alpha": 0.087, "regime": "cold_surge"}, {"ts": "2026-11-14 22:46:49", "model": "calypso-5.1", "profile": "conversion_first", "v": 17, "secs": 24.62, "active": 5263, "alpha": 0.086, "regime": "cold_surge"}, {"ts": "2026-11-15 04:02:38", "model": "calypso-6.1", "profile": "conversion_first", "v": 1, "secs": 91.79, "active": 5463, "alpha": 0.147, "regime": "cold_surge"}, {"ts": "2026-11-15 04:03:36", "model": "calypso-6.1", "profile": "conversion_first", "v": 2, "secs": 46.27, "active": 5463, "alpha": 0.15, "regime": "conservative_fallback"}, {"ts": "2026-11-15 06:57:32", "model": "calypso-6.2b", "profile": "conversion_first", "v": 63, "secs": 148.49, "active": 5463, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 06:59:54", "model": "calypso-6.2b", "profile": "conversion_first", "v": 66, "secs": 117.73, "active": 5463, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 07:02:28", "model": "calypso-6.2b", "profile": "conversion_first", "v": 68, "secs": 139.35, "active": 5563, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 07:04:41", "model": "calypso-6.2b", "profile": "conversion_first", "v": 71, "secs": 107.35, "active": 5563, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 07:10:28", "model": "calypso-6.2b", "profile": "conversion_first", "v": 1, "secs": 143.63, "active": 5563, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 07:12:53", "model": "calypso-6.2b", "profile": "conversion_first", "v": 2, "secs": 128.05, "active": 5563, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 07:15:34", "model": "calypso-6.2b", "profile": "conversion_first", "v": 5, "secs": 138.46, "active": 5563, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 07:18:13", "model": "calypso-6.2b", "profile": "conversion_first", "v": 7, "secs": 143.1, "active": 5563, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 08:30:46", "model": "calypso-6.2b", "profile": "conversion_first", "v": 1, "secs": 146.77, "active": 5564, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 08:33:28", "model": "calypso-6.2b", "profile": "conversion_first", "v": 2, "secs": 142.72, "active": 5564, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 08:36:37", "model": "calypso-6.2b", "profile": "conversion_first", "v": 5, "secs": 165.27, "active": 5564, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 08:39:02", "model": "calypso-6.2b", "profile": "conversion_first", "v": 7, "secs": 130.19, "active": 5564, "alpha": 0.45, "regime": "conservative_fallback"}, {"ts": "2026-11-15 08:42:23", "model": "calypso-6.2b", "profile": "conversion_first", "v": 9, "secs": 183.31, "active": 5564, "alpha": 0.45, "regime": "conservative_fallback"}], "events": [{"ts": "2026-11-14 22:16:26", "kind": "Training", "folder": "calypso_5_1", "model": "calypso-5.1"}, {"ts": "2026-11-14 22:17:40", "kind": "Launching", "folder": "calypso_5_1", "model": "calypso-5.1"}, {"ts": "2026-11-14 22:41:42", "kind": "Training", "folder": "calypso_5_1", "model": "calypso-5.1"}, {"ts": "2026-11-14 22:42:58", "kind": "Launching", "folder": "calypso_5_1", "model": "calypso-5.1"}, {"ts": "2026-11-15 04:00:59", "kind": "Training", "folder": "calypso_6_1", "model": "calypso-6.1"}, {"ts": "2026-11-15 04:02:40", "kind": "Launching", "folder": "calypso_6_1", "model": "calypso-6.1"}, {"ts": "2026-11-15 06:31:06", "kind": "Training", "folder": "calypso_6_2_b", "model": "calypso-6.2b"}, {"ts": "2026-11-15 06:54:42", "kind": "Launching", "folder": "calypso_6_2_b", "model": "calypso-6.2b"}, {"ts": "2026-11-15 07:07:56", "kind": "Training", "folder": "calypso_6_2_b", "model": "calypso-6.2b"}, {"ts": "2026-11-15 07:10:31", "kind": "Launching", "folder": "calypso_6_2_b", "model": "calypso-6.2b"}, {"ts": "2026-11-15 08:28:10", "kind": "Training", "folder": "calypso_6_2_b", "model": "calypso-6.2b"}, {"ts": "2026-11-15 08:30:50", "kind": "Launching", "folder": "calypso_6_2_b", "model": "calypso-6.2b"}], "submissions_per_min": [{"minute": "2026-11-15 06:55", "answers": 149}, {"minute": "2026-11-15 06:56", "answers": 175}, {"minute": "2026-11-15 06:57", "answers": 168}, {"minute": "2026-11-15 06:58", "answers": 163}, {"minute": "2026-11-15 06:59", "answers": 166}, {"minute": "2026-11-15 07:00", "answers": 145}, {"minute": "2026-11-15 07:01", "answers": 187}, {"minute": "2026-11-15 07:02", "answers": 142}, {"minute": "2026-11-15 07:03", "answers": 176}, {"minute": "2026-11-15 07:04", "answers": 165}, {"minute": "2026-11-15 07:05", "answers": 148}, {"minute": "2026-11-15 07:06", "answers": 154}, {"minute": "2026-11-15 07:10", "answers": 35}, {"minute": "2026-11-15 07:11", "answers": 185}, {"minute": "2026-11-15 07:12", "answers": 172}, {"minute": "2026-11-15 07:13", "answers": 180}, {"minute": "2026-11-15 07:14", "answers": 174}, {"minute": "2026-11-15 07:15", "answers": 152}, {"minute": "2026-11-15 07:16", "answers": 179}, {"minute": "2026-11-15 07:17", "answers": 178}, {"minute": "2026-11-15 07:18", "answers": 151}, {"minute": "2026-11-15 07:19", "answers": 152}, {"minute": "2026-11-15 08:31", "answers": 149}, {"minute": "2026-11-15 08:32", "answers": 184}, {"minute": "2026-11-15 08:33", "answers": 160}, {"minute": "2026-11-15 08:34", "answers": 161}, {"minute": "2026-11-15 08:35", "answers": 184}, {"minute": "2026-11-15 08:36", "answers": 156}, {"minute": "2026-11-15 08:37", "answers": 177}, {"minute": "2026-11-15 08:38", "answers": 174}, {"minute": "2026-11-15 08:39", "answers": 159}, {"minute": "2026-11-15 08:40", "answers": 154}, {"minute": "2026-11-15 08:41", "answers": 181}, {"minute": "2026-11-15 08:42", "answers": 127}, {"minute": "2026-11-15 08:43", "answers": 161}, {"minute": "2026-11-15 08:44", "answers": 156}, {"minute": "2026-11-15 08:45", "answers": 179}, {"minute": "2026-11-15 08:46", "answers": 88}, {"minute": "2026-11-15 08:47", "answers": 60}, {"minute": "2026-11-15 08:48", "answers": 75}, {"minute": "2026-11-15 08:49", "answers": 26}, {"minute": "2026-11-15 08:50", "answers": 114}, {"minute": "2026-11-15 08:51", "answers": 25}], "errors_by_hour": [{"hour": "2026-11-14 22", "kind": "Fichero bloqueado (Windows)", "count": 3}, {"hour": "2026-11-14 22", "kind": "RawTree: lectura > timeout", "count": 20}, {"hour": "2026-11-15 04", "kind": "RawTree: lectura > timeout", "count": 8}, {"hour": "2026-11-15 04", "kind": "RawTree: sin conexión", "count": 7}, {"hour": "2026-11-15 06", "kind": "RawTree: lectura > timeout", "count": 4}, {"hour": "2026-11-15 07", "kind": "RawTree: lectura > timeout", "count": 5}, {"hour": "2026-11-15 08", "kind": "Fichero bloqueado (Windows)", "count": 1}, {"hour": "2026-11-15 08", "kind": "RawTree: lectura > timeout", "count": 5}, {"hour": "2026-11-15 08", "kind": "RawTree: sin conexión", "count": 18}], "last_model": "calypso-6.2b", "last_snapshot": {"ts": "2026-11-15 08:42:23", "model": "calypso-6.2b", "profile": "conversion_first", "v": 9, "secs": 183.31, "active": 5564, "alpha": 0.45, "regime": "conservative_fallback"}, "profiles": {"calypso-5.1": "conversion_first", "calypso-6.1": "conversion_first", "calypso-6.2b": "conversion_first"}, "snap_secs_model": [148.49, 117.73, 139.35, 107.35, 143.63, 128.05, 138.46, 143.1, 146.77, 142.72, 165.27, 130.19, 183.31], "log_end": "2026-11-15 08:51"}, "live": null, "checks": [{"id": "ganador", "status": "warn", "title": "Ganador del benchmark de presets", "detail": "El JSON da ganador a calibrated_m3 (obj 0.7223). Comparacio_Models_6.2.b.md dice product_profile_focus (0,7187): el dashboard usa solo el JSON."}, {"id": "muestra", "status": "warn", "title": "Muestra pequeña en el benchmark", "detail": "Tamaños inferidos de las fracciones del JSON: ALL 465, WARM 327, COLD 138 sesiones con compra. IC 95 % ≈ ±4 pts en ALL y ±8 en COLD: diferencias menores son ruido."}, {"id": "version", "status": "warn", "title": "¿Qué corre exactamente en la final?", "detail": "Ficheros que aún dicen «6.2a»: README_6_2_b.md, model_manifest.json, cache/heartbeat.json. El log arranca calypso-6.2b con profile=conversion_first; el último commit habla de RADICAL1. Confirmar en la máquina servidora."}, {"id": "pin", "status": "warn", "title": "pin_viewed_top en 6.2b", "detail": "No existe en el código de calypso_6_2_b (solo en odyseus_3_0): el panel 3 es una recomendación, no algo desplegado."}, {"id": "unidades", "status": "info", "title": "Offline y en vivo no comparten unidad", "detail": "hit@10 offline (~70 %) está condicionado a sesiones con compra y a un simulador propio; en vivo medimos compras por 100 peticiones (~1). Nunca se dibujan en el mismo eje."}]};
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const fmt = (x, d = 1) => x == null || Number.isNaN(x) ? "—" : x.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (x, d = 1) => x == null ? "—" : fmt(100 * x, d) + " %";
+const int = (x) => x == null ? "—" : Math.round(x).toLocaleString("es-ES");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function el(tag, attrs = {}, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function mkSvg(container, w, h) {
+  const s = el("svg", { viewBox: `0 0 ${w} ${h}`, role: "img" });
+  container.appendChild(s);
+  return s;
+}
+const lin = (d0, d1, r0, r1) => { const f = (v) => r0 + (v - d0) / (d1 - d0) * (r1 - r0); f.inv = (p) => d0 + (p - r0) / (r1 - r0) * (d1 - d0); return f; };
+function niceTicks(min, max, n = 5) {
+  const span = max - min, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= n) || mag * 10;
+  const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+
+// ---- tooltip
+const tip = $("tip");
+document.addEventListener("pointermove", (ev) => {
+  const t = ev.target.closest && ev.target.closest("[data-tip]");
+  if (!t) { tip.style.opacity = 0; return; }
+  tip.innerHTML = t.getAttribute("data-tip");
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.opacity = 1;
+});
+
+function table(container, headers, rows) {
+  const h = `<table><thead><tr>${headers.map((x) => `<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("") + "</tbody></table>";
+  container.innerHTML = h;
+}
+const statusIcon = { ok: ["var(--good)", "✓", "OK"], warn: ["var(--warning)", "!", "Revisar"], crit: ["var(--critical)", "×", "Fallo"], info: ["var(--info)", "i", "Nota"] };
+function statusHTML(kind, label) {
+  const [c, s, l] = statusIcon[kind];
+  return `<span class="status"><i class="ico" style="background:${c}">${s}</i>${esc(label || l)}</span>`;
+}
+function emptyBox(container, title, body) {
+  container.innerHTML = `<div class="empty"><b>${esc(title)}</b><pre>${esc(body)}</pre></div>`;
+}
+const EXPORT_HOWTO = "Sin red a RawTree desde la sesión de Claude. En una máquina del equipo con red:\n  python dashboard/export_live.py          # escribe dashboard/live/live_export.json\n  python dashboard/build_data.py           # regenera este index.html";
+
+// ---- chart: horizontal dot + CI
+function dotCI(container, { rows, domain, title, showLabels = true, labelW = 150, fmtV = (v) => pct(v), refLine, W = 400 }) {
+  const rowH = 30, top = 26, bottom = 26, lw = showLabels ? labelW : 8, right = 46;
+  const H = top + rows.length * rowH + bottom;
+  const s = mkSvg(container, W, H);
+  const x = lin(domain[0], domain[1], lw, W - right);
+  if (title) el("text", { x: lw, y: 12, class: "ttl" }, s, title);
+  for (const t of niceTicks(domain[0], domain[1], 4)) {
+    el("line", { x1: x(t), x2: x(t), y1: top - 4, y2: H - bottom, class: "gridl" }, s);
+    el("text", { x: x(t), y: H - bottom + 14, "text-anchor": "middle" }, s, fmtV(t).replace(",0 %", " %"));
+  }
+  if (refLine != null) el("line", { x1: x(refLine), x2: x(refLine), y1: top - 4, y2: H - bottom, stroke: "var(--muted)", "stroke-dasharray": "4 3", "stroke-width": 1.5 }, s);
+  rows.forEach((r, i) => {
+    const cy = top + i * rowH + rowH / 2;
+    if (showLabels) el("text", { x: lw - 8, y: cy + 4, "text-anchor": "end", class: r.strong ? "ttl" : null }, s, r.label);
+    if (r.lo != null) el("line", { x1: x(r.lo), x2: x(r.hi), y1: cy, y2: cy, stroke: r.color, "stroke-width": 2, "stroke-linecap": "round" }, s);
+    el("circle", { cx: x(r.value), cy, r: 5.5, fill: r.color, stroke: "var(--surface)", "stroke-width": 2 }, s);
+    el("text", { x: Math.max(x(r.hi ?? r.value), x(r.value)) + 8, y: cy + 4, class: "val" }, s, fmtV(r.value));
+    el("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, class: "hit", "data-tip": r.tip }, s);
+  });
+  return s;
+}
+
+// ---- chart: grouped vertical bars with CI whiskers
+function groupedBars(container, { cats, series, domain, yFmt, title, H = 270 }) {
+  const W = 640, left = 44, right = 10, top = 22, bottom = 34;
+  const s = mkSvg(container, W, H);
+  const x0 = lin(0, cats.length, left, W - right), y = lin(domain[0], domain[1], H - bottom, top);
+  if (title) el("text", { x: left, y: 12, class: "ttl" }, s, title);
+  for (const t of niceTicks(domain[0], domain[1], 5)) {
+    el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), class: "gridl" }, s);
+    el("text", { x: left - 6, y: y(t) + 4, "text-anchor": "end" }, s, yFmt(t));
+  }
+  el("line", { x1: left, x2: W - right, y1: y(0), y2: y(0), class: "axisl" }, s);
+  const band = (W - right - left) / cats.length, bw = Math.min(22, (band - 10) / series.length - 2);
+  cats.forEach((c, i) => {
+    const cx = x0(i) + band / 2;
+    el("text", { x: cx, y: H - bottom + 16, "text-anchor": "middle" }, s, c);
+    series.forEach((se, j) => {
+      const d = se.data[i]; if (!d || d.value == null) return;
+      const bx = cx - (series.length * (bw + 2)) / 2 + j * (bw + 2) + 1;
+      const yv = y(d.value), y0 = y(0), r = Math.min(4, (y0 - yv) / 2);
+      el("path", { d: `M${bx},${y0} V${yv + r} Q${bx},${yv} ${bx + r},${yv} H${bx + bw - r} Q${bx + bw},${yv} ${bx + bw},${yv + r} V${y0} Z`, fill: se.color }, s);
+      if (d.lo != null) el("line", { x1: bx + bw / 2, x2: bx + bw / 2, y1: y(d.lo), y2: y(Math.min(d.hi, domain[1])), stroke: "var(--text)", "stroke-width": 1.2, opacity: .55 }, s);
+      el("rect", { x: bx - 1, y: top, width: bw + 2, height: H - bottom - top, class: "hit", "data-tip": d.tip }, s);
+    });
+  });
+  el("text", { x: (left + W - right) / 2, y: H - 2, "text-anchor": "middle" }, s, "Posición en el carrusel (slot)");
+}
+
+// ---- chart: time line with band, markers and reference
+function timeLine(container, { pts, yKey, loKey, hiKey, domain, yFmt, title, ref, markers = [], H = 240, color = "var(--s1)", tipFn, W = 760, maxGapMin = null, dots = false }) {
+  const left = 46, right = 14, top = 24, bottom = 30;
+  const s = mkSvg(container, W, H);
+  const t = pts.map((p) => new Date(p.t.replace(" ", "T")).getTime());
+  const tmin = Math.min(...t), tmax = Math.max(...t, tmin + 60000);
+  const x = lin(tmin, tmax, left, W - right), y = lin(domain[0], domain[1], H - bottom, top);
+  if (title) el("text", { x: left, y: 12, class: "ttl" }, s, title);
+  for (const v of niceTicks(domain[0], domain[1], 4)) {
+    el("line", { x1: left, x2: W - right, y1: y(v), y2: y(v), class: "gridl" }, s);
+    el("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end" }, s, yFmt(v));
+  }
+  const nT = 6;
+  for (let i = 0; i <= nT; i++) {
+    const tv = tmin + (tmax - tmin) * i / nT, d = new Date(tv);
+    el("text", { x: x(tv), y: H - bottom + 16, "text-anchor": "middle" }, s, d.toTimeString().slice(0, 5));
+  }
+  if (loKey) {
+    const up = pts.map((p, i) => `${x(t[i])},${y(Math.min(p[hiKey], domain[1]))}`), dn = pts.map((p, i) => `${x(t[i])},${y(Math.max(p[loKey], domain[0]))}`).reverse();
+    el("polygon", { points: up.concat(dn).join(" "), fill: "var(--band)" }, s);
+  }
+  if (ref) {
+    el("line", { x1: left, x2: W - right, y1: y(ref.value), y2: y(ref.value), stroke: "var(--muted)", "stroke-dasharray": "5 4", "stroke-width": 1.5 }, s);
+    el("text", { x: W - right, y: y(ref.value) - 5, "text-anchor": "end" }, s, ref.label);
+  }
+  markers.forEach((m) => {
+    const tv = new Date(m.t.replace(" ", "T")).getTime(); if (tv < tmin || tv > tmax) return;
+    el("line", { x1: x(tv), x2: x(tv), y1: top, y2: H - bottom, stroke: "var(--text-2)", "stroke-width": 1, opacity: .6 }, s);
+    el("text", { x: x(tv) + 4, y: top + 9 }, s, m.label);
+  });
+  el("path", { d: pts.map((p, i) => `${i && (maxGapMin == null || t[i] - t[i - 1] <= maxGapMin * 60000) ? "L" : "M"}${x(t[i])},${y(p[yKey])}`).join(""), fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }, s);
+  if (dots) pts.forEach((p, i) => el("circle", { cx: x(t[i]), cy: y(p[yKey]), r: 4, fill: color, stroke: "var(--surface)", "stroke-width": 2 }, s));
+  const cross = el("line", { y1: top, y2: H - bottom, stroke: "var(--axis)", opacity: 0 }, s);
+  const dot = el("circle", { r: 4.5, fill: color, stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, s);
+  const hit = el("rect", { x: left, y: top, width: W - left - right, height: H - top - bottom, class: "hit" }, s);
+  hit.addEventListener("pointermove", (ev) => {
+    const b = s.getBoundingClientRect(), px = (ev.clientX - b.left) * W / b.width, tv = x.inv(px);
+    let k = 0; t.forEach((v, i) => { if (Math.abs(v - tv) < Math.abs(t[k] - tv)) k = i; });
+    cross.setAttribute("x1", x(t[k])); cross.setAttribute("x2", x(t[k])); cross.setAttribute("opacity", 1);
+    dot.setAttribute("cx", x(t[k])); dot.setAttribute("cy", y(pts[k][yKey])); dot.setAttribute("opacity", 1);
+    hit.setAttribute("data-tip", tipFn(pts[k]));
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); });
+}
+
+// ---- chart: simple columns over categorical x (optionally stacked)
+function columns(container, { cats, stacks, domainMax, yFmt, title, H = 200, xLabelEvery = 1, xFmt = (c) => c, W = 760 }) {
+  const left = 46, right = 10, top = 22, bottom = 30;
+  const s = mkSvg(container, W, H);
+  const y = lin(0, domainMax, H - bottom, top), band = (W - left - right) / cats.length, bw = Math.max(2, band - 2);
+  if (title) el("text", { x: left, y: 12, class: "ttl" }, s, title);
+  for (const v of niceTicks(0, domainMax, 4)) {
+    el("line", { x1: left, x2: W - right, y1: y(v), y2: y(v), class: "gridl" }, s);
+    el("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end" }, s, yFmt(v));
+  }
+  cats.forEach((c, i) => {
+    const bx = left + i * band + 1; let acc = 0; const tips = [];
+    stacks.forEach((st) => {
+      const v = st.values[i] || 0; if (!v) return;
+      const y1 = y(acc + v), y0 = y(acc);
+      el("rect", { x: bx, y: y1, width: bw, height: Math.max(0, y0 - y1 - (acc ? 0 : 0)), fill: st.color, stroke: "var(--surface)", "stroke-width": stacks.length > 1 ? 1 : 0 }, s);
+      acc += v; tips.push(`${esc(st.name)}: <b>${int(v)}</b>`);
+    });
+    if (i % xLabelEvery === 0) el("text", { x: bx + bw / 2, y: H - bottom + 16, "text-anchor": "middle" }, s, xFmt(c));
+    el("rect", { x: bx, y: top, width: bw, height: H - top - bottom, class: "hit", "data-tip": `<b>${esc(c)}</b><br>${tips.join("<br>") || "0"}` }, s);
+  });
+  el("line", { x1: left, x2: W - right, y1: y(0), y2: y(0), class: "axisl" }, s);
+}
+
+// =========================================================== render
+function renderHeader() {
+  const L = D.live;
+  $("meta").innerHTML = `<span>Construido: ${esc(D.built_at)}</span>` +
+    `<span>Feedback en vivo: ${L && !L.empty ? "export " + esc(L.exported_at) : "<b>sin export</b>"}</span>` +
+    `<span>Log del servidor hasta: ${esc(D.log?.log_end || "—")}</span>` +
+    `<button id="theme" type="button">Tema claro/oscuro</button>`;
+  $("theme").onclick = () => {
+    const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    r.dataset.theme = dark ? "light" : "dark";
+  };
+  const w = D.constants.weights, tot = w.conversion + w.cold_start + w.reliability;
+  $("formula").innerHTML =
+    `<div style="flex:${w.conversion};background:#1c5cab">Conversión · ${w.conversion} pts<small>compras por 100 peticiones · paneles 1, 2, 3, 4, 5</small></div>` +
+    `<div style="flex:${w.cold_start};background:#2a78d6">Cold start · ${w.cold_start}<small>paneles 1, 2, 5</small></div>` +
+    `<div style="flex:${w.reliability};background:#6da7ec;color:#0d366b">Fiabilidad · ${w.reliability}<small>paneles 1, 6</small></div>`;
+  $("checks").innerHTML = D.checks.map((c) => `<div class="check">${statusHTML(c.status)}<div class="t">${esc(c.title)}</div><div class="d">${esc(c.detail)}</div></div>`).join("");
+}
+
+function renderKPIs() {
+  const L = D.live, C = D.constants;
+  $("p1-src").innerHTML = L && !L.empty
+    ? `Fuente: <code>team_NN.feedback</code> ⨝ <code>shop.requests</code>, ventana ${esc(L.kpi.window[0].slice(0, 19))} → ${esc(L.kpi.window[1].slice(0, 19))} (UTC). Todas las peticiones cuentan, también las servidas por el fallback.`
+    : `Fuente: <code>team_NN.feedback</code> (pendiente de export). Referencia del carrusel antiguo: ${fmt(C.old_carousel_per100, 2)} compras/100 en <code>shop.history_sessions</code>.`;
+  const tiles = [];
+  if (L && !L.empty) {
+    const K = L.kpi, d = K.all.per100 - C.old_carousel_per100;
+    tiles.push(`<div class="kpi"><div class="k">Compras por 100 peticiones</div><div class="v">${fmt(K.all.per100, 2)}</div>
+      <div class="c">IC 95 % ${fmt(K.all.lo, 2)}–${fmt(K.all.hi, 2)} · n = ${int(K.all.n)}</div>
+      <div class="w">Carrusel antiguo ${fmt(C.old_carousel_per100, 2)} (${d >= 0 ? "+" : ""}${fmt(d, 2)}). Fallback en este stream: ${fmt(K.fallback_only.per100, 2)} (n = ${int(K.fallback_only.n)})</div></div>`);
+    tiles.push(`<div class="kpi"><div class="k">Cold start · compras por 100</div><div class="v">${fmt(K.cold.per100, 2)}</div>
+      <div class="c">IC 95 % ${fmt(K.cold.lo, 2)}–${fmt(K.cold.hi, 2)} · n = ${int(K.cold.n)}</div>
+      <div class="w">Usuario nuevo o vio un producto añadido durante el evento</div></div>`);
+    const ot = K.on_time_last5 ?? K.on_time, st = ot > 0.9 ? "ok" : "crit";
+    tiles.push(`<div class="kpi"><div class="k">Respuestas válidas a tiempo</div><div class="v">${pct(K.on_time)}</div>
+      <div class="c">Últimos 5 min: ${pct(K.on_time_last5)} ${statusHTML(st, st === "ok" ? "luz verde (>90 %)" : "luz roja (≤90 %)")}</div>
+      <div class="w">Fallback: ${K.fallback_reasons.map(([r, n]) => `${esc(r || "?")} ${int(n)}`).join(" · ") || "ninguno"}</div></div>`);
+    const p95 = K.lat_p95, ls = p95 == null ? "info" : p95 < C.sla_ms * 0.8 ? "ok" : p95 < C.sla_ms ? "warn" : "crit";
+    tiles.push(`<div class="kpi"><div class="k">Latencia (p50 / p95)</div><div class="v">${fmt(K.lat_p50 / 1000, 2)}<small> s</small> / ${fmt(p95 / 1000, 2)}<small> s</small></div>
+      <div class="c">SLA ${fmt(C.sla_ms / 1000, 0)} s ${statusHTML(ls, ls === "ok" ? "holgado" : ls === "warn" ? "cerca del SLA" : "fuera de SLA")}</div>
+      <div class="w">p99 ${fmt(K.lat_p99 / 1000, 2)} s · solo respuestas servidas por el equipo</div></div>`);
+  } else {
+    const ph = (k, c) => `<div class="kpi"><div class="k">${k}</div><div class="v">—</div><div class="c">${c}</div><div class="w">Pendiente de <code>export_live.py</code></div></div>`;
+    tiles.push(ph("Compras por 100 peticiones", `Carrusel antiguo: ${fmt(C.old_carousel_per100, 2)}`), ph("Cold start · compras por 100", "Nuevos + productos nuevos"),
+      ph("Respuestas válidas a tiempo", "Luz verde si &gt; 90 % en 5 min"), ph("Latencia p50 / p95", `SLA ${C.sla_ms / 1000} s`));
+  }
+  $("kpis").innerHTML = tiles.join("");
+}
+
+function renderPresets() {
+  const P = D.presets, segs = [["ALL", "Todas las sesiones"], ["WARM", "Usuarios con historial (WARM)"], ["COLD", "Cold start (COLD)"]];
+  const order = P.ranking.map((r) => r.preset), win = P.winner;
+  const all = P.rows.filter((r) => r.segment !== "COLD_ITEM");
+  const lo = Math.floor(Math.min(...all.map((r) => r.lo)) * 20) / 20, hi = Math.ceil(Math.max(...all.map((r) => r.hi)) * 20) / 20;
+  segs.forEach(([seg, name], i) => {
+    const div = document.createElement("div"); $("p2-chart").appendChild(div);
+    const rows = order.map((p) => {
+      const r = P.rows.find((x) => x.preset === p && x.segment === seg);
+      return { label: p, value: r.hit, lo: r.lo, hi: r.hi, color: p === win ? "var(--s1)" : "var(--neutral)", strong: p === win,
+        tip: `<b>${esc(p)}</b> · ${esc(name)}<br>hit@10: <b>${pct(r.hit)}</b><br>IC 95 %: ${pct(r.lo)} – ${pct(r.hi)}<br>n = ${r.n} sesiones con compra` };
+    });
+    dotCI(div, { rows, domain: [lo, hi], title: `${name} · n = ${P.sizes[seg]}`, showLabels: true, labelW: 140 });
+  });
+  const g = (p, s) => P.rows.find((r) => r.preset === p && r.segment === s);
+  const m3 = g(win, "ALL"), ppfC = g("product_profile_focus", "COLD"), ppfW = g("product_profile_focus", "WARM"), m3C = g(win, "COLD"), m3W = g(win, "WARM");
+  const cf = g("conversion_first", "ALL"), ppfA = g("product_profile_focus", "ALL");
+  const top = P.ranking[0], second = P.ranking[1];
+  $("p2-ev").innerHTML = [
+    `<li><b>${esc(win)}</b> tiene el mejor objetivo combinado (${fmt(top.obj, 3)} vs ${fmt(second.obj, 3)} de ${esc(second.preset)}) y el mejor hit@10 global: ${pct(m3.hit)} [${pct(m3.lo, 0)}–${pct(m3.hi, 0)}].</li>`,
+    `<li><b>product_profile_focus</b> gana en COLD (${pct(ppfC.hit)} vs ${pct(m3C.hit)}), pero pierde en WARM (${pct(ppfW.hit)} vs ${pct(m3W.hit)}). Con n = ${P.sizes.COLD} los IC de COLD se solapan; WARM pesa más en la conversión total.</li>`,
+    `<li>conversion_first vs product_profile_focus en ALL (${pct(cf.hit)} vs ${pct(ppfA.hit)}) es ruido: diferencia muy por debajo del ±4 pts del IC.</li>`,
+    `<li>Coste en latencia despreciable para todos: ${P.ranking.map((r) => fmt(r.latency_ms, 2)).join(" / ")} ms por petición offline.</li>`,
+  ].join("");
+  const prof = D.log?.profiles?.["calypso-6.2b"];
+  $("p2-dec").innerHTML = `<b class="lbl">Decisión</b><p>Desplegar <b>${esc(win)}</b> en la final: es el único preset sin un segmento débil.</p>` +
+    (prof && prof !== win ? `<p>${statusHTML("warn", "Por confirmar")} el log del servidor arrancó calypso-6.2b con <code>profile=${esc(prof)}</code>, no con ${esc(win)}.</p>` : "");
+  table($("p2-table"), ["Preset", "Segmento", "hit@10", "IC inf.", "IC sup.", "n"], P.rows.map((r) => [r.preset, r.segment, pct(r.hit), pct(r.lo), pct(r.hi), r.n]));
+}
+
+function renderViewed() {
+  const V = D.viewed;
+  if (!V) { emptyBox($("p3-chart"), "Sin muestra raw", "No se encontró odyseus_2_0/ml_data/raw/*.json.gz"); return; }
+  $("p3-src").innerHTML = `Fuente: muestra local de <code>shop.history_sessions</code> en <code>odyseus_2_0/ml_data/raw</code> (${V.files} días, ${int(V.n_requests)} peticiones). Tasa de compra de cada producto mostrado, según el slot del carrusel antiguo.`;
+  const R = V.rows, slots = [...Array(10).keys()];
+  const mk = (v) => slots.map((i) => { const r = R.find((x) => x.slot === i && x.viewed === v); return { value: r.rate, lo: r.lo, hi: r.hi,
+    tip: `<b>Slot ${i + 1} · ${v ? "ya visto" : "no visto"}</b><br>Tasa de compra: <b>${pct(r.rate)}</b><br>IC 95 %: ${pct(r.lo)} – ${pct(r.hi)}<br>${int(r.buys)} compras / ${int(r.n)} impresiones` }; });
+  const maxV = Math.max(...R.map((r) => r.hi));
+  groupedBars($("p3-chart"), { cats: slots.map((i) => String(i + 1)), series: [{ color: "var(--s1)", data: mk(1) }, { color: "var(--s2)", data: mk(0) }],
+    domain: [0, Math.ceil(maxV * 20) / 20], yFmt: (v) => fmt(100 * v, 0) + " %", title: "Tasa de compra del producto mostrado (muestra enriquecida en compras)" });
+  const s0v = R.find((x) => x.slot === 0 && x.viewed === 1), s0n = R.find((x) => x.slot === 0 && x.viewed === 0);
+  $("p3-ev").innerHTML = [
+    `<li>Un producto ya visto se compra <b>≈${fmt(V.or_product_slot, 1)}×</b> más que <i>el mismo producto en el mismo slot</i> sin haberlo visto (odds ratio Mantel-Haenszel; ${int(V.observed)} compras observadas frente a ${int(V.expected)} esperadas).</li>`,
+    `<li>En el slot 1: ${pct(s0v.rate)} frente a ${pct(s0n.rate)}. El efecto se mantiene en los 10 slots y en ambas páginas (${V.pages.map((p) => `${esc(p.page)} ×${fmt(p.ratio, 1)}`).join(", ")}).</li>`,
+    `<li>Solo el ${pct(V.share_req_with_viewed_shown, 0)} de las peticiones del carrusel antiguo mostraba algún producto ya visto, aunque estos explican el ${pct(V.share_buys_of_viewed, 0)} de las compras.</li>`,
+    `<li>Escala: la muestra está enriquecida en compras (${pct(V.purchase_share, 1)} de peticiones con compra frente a ~1,4 % real). Los niveles absolutos están inflados; la razón visto/no visto es lo que vale. Un análisis previo con otra estratificación dio OR 7,2.</li>`,
+  ].join("");
+  $("p3-dec").innerHTML = `<b class="lbl">Decisión</b><p>Sí: fijar arriba los productos de <code>recent_views</code> (activos, ordenados por conversión propia) y dejar detrás el ranking normal.</p>
+    <p>${statusHTML("warn", "No desplegado")} <code>pin_viewed_top</code> solo existe en <code>odyseus_3_0</code>; en Calypso 6.2b no.</p>`;
+  table($("p3-table"), ["Slot", "Visto", "Impresiones", "Compras", "Tasa", "IC inf.", "IC sup."], R.map((r) => [r.slot + 1, r.viewed ? "sí" : "no", int(r.n), int(r.buys), pct(r.rate, 2), pct(r.lo, 2), pct(r.hi, 2)]));
+}
+
+function renderAblation() {
+  const A = D.ablation;
+  $("p4-src").innerHTML = `Fuente: <code>calypso_6_2_b/etapa_4/ablation_v4_results.csv</code> (${A.variants.length} variantes × ${A.seeds.length} semillas: ${A.seeds.join(", ")}). Cambio en DCG@10 de compra (todas las sesiones) frente a la base Calypso 3.1b, pareado por semilla.`;
+  const labels = { "A_3.1b": "3.1b (base)", "B_4.1_completo": "4.1 completo (todas las reglas)", "3.1b + carrito_activo": "+ carrito activo", "3.1b + carrito_olvidado": "+ carrito olvidado",
+    "3.1b + carrito_ambos": "+ ambos carritos", "3.1b + precio_asc": "+ precio ascendente", "3.1b + recurrentes": "+ recurrentes", "4.1 - precio_asc": "4.1 sin precio ascendente" };
+  const ds = A.deltas_dcg_all.filter((d) => d.variant !== "A_3.1b");
+  const lo = Math.min(...ds.map((d) => d.min)), hi = Math.max(...ds.map((d) => d.max), 0.01);
+  dotCI($("p4-chart"), { rows: ds.map((d) => ({ label: labels[d.variant] || d.variant, value: d.mean, lo: d.min, hi: d.max, color: "var(--s1)",
+    tip: `<b>${esc(labels[d.variant] || d.variant)}</b><br>Δ DCG@10: <b>${fmt(d.mean, 3)}</b><br>rango entre semillas: ${fmt(d.min, 3)} a ${fmt(d.max, 3)}` })),
+    domain: [Math.floor(lo * 50) / 50, Math.ceil(hi * 50) / 50], title: "Δ DCG@10 de compra vs 3.1b", labelW: 200, W: 640, fmtV: (v) => (v > 0 ? "+" : "") + fmt(v, 3), refLine: 0 });
+  const get = (v, s, m) => A.rows.find((r) => r.variant === v && r.segment === s && r.metric === m);
+  const b = get("A_3.1b", "ALL", "dcg_buy@10"), pa = get("3.1b + precio_asc", "ALL", "dcg_buy@10"), bh = get("A_3.1b", "ALL", "hit_rate_buy@10"), ph = get("3.1b + precio_asc", "ALL", "hit_rate_buy@10");
+  const full = A.deltas_dcg_all.find((d) => d.variant === "B_4.1_completo"), nopa = A.deltas_dcg_all.find((d) => d.variant === "4.1 - precio_asc");
+  $("p4-ev").innerHTML = [
+    `<li>Ordenar por precio ascendente hunde el DCG@10: <b>${fmt(b.mean, 3)} → ${fmt(pa.mean, 3)}</b>, en las ${A.seeds.length} semillas. El hit@10 no cambia (${pct(bh.mean)} vs ${pct(ph.mean)}): el producto comprado sigue en el top-10, pero baja de posición.</li>`,
+    `<li>Explica casi toda la pérdida de 4.1 completo (${fmt(full.mean, 3)}); sin esa regla queda en ${fmt(nopa.mean, 3)}.</li>`,
+    `<li>Carrito (activo/olvidado) y recurrentes son neutros: |Δ| ≤ ${fmt(Math.max(...ds.filter((d) => /carrito|recurrentes/.test(d.variant)).map((d) => Math.abs(d.mean))), 3)}, dentro de la variación entre semillas.</li>`,
+  ].join("");
+  $("p4-dec").innerHTML = `<b class="lbl">Decisión</b><p>Competir por score: las señales de negocio entran como features del ranking, no como reglas que reordenan la lista. Se elimina el orden por precio ascendente.</p>`;
+  table($("p4-table"), ["Variante", "Segmento", "Métrica", "Media", "Desv.", "Mín", "Máx"], A.rows.map((r) => [labels[r.variant] || r.variant, r.segment, r.metric, fmt(r.mean, 3), fmt(r.sd, 3), fmt(r.min, 3), fmt(r.max, 3)]));
+}
+
+function renderLive() {
+  const L = D.live, body = $("p5-body");
+  $("p5-src").innerHTML = `Fuente: <code>team_NN.feedback</code> ⨝ <code>shop.requests</code> ⨝ <code>team_NN.submissions</code>; cambios de modelo de <code>gestor_models/state/model_transitions.json</code> y de <code>model_version</code> en submissions.`;
+  if (!L || L.empty) { emptyBox(body, "Pendiente: export del feedback en vivo", EXPORT_HOWTO); return; }
+  body.innerHTML = `<div class="grid2"><div><div class="legend"><span><i class="line" style="background:var(--s1)"></i>Compras por 100 peticiones (bloques de ${L.bucket_minutes} min)</span><span><i style="background:var(--band)"></i>IC 95 %</span><span><i class="dash"></i>Carrusel antiguo</span><span>│ cambio de modelo</span></div><div id="p5-ts"></div></div><div><h3>Compras por 100 · página × tipo de usuario</h3><div id="p5-grid"></div><div class="decision" id="p5-dec" style="margin-top:12px"></div></div></div><details><summary>Ver tabla</summary><div id="p5-table"></div></details>`;
+  const ymax = Math.max(3, ...L.series.map((p) => Math.min(p.hi, 6)));
+  const marks = L.changes.map((c) => ({ t: c.t, label: c.model }));
+  timeLine($("p5-ts"), { pts: L.series, yKey: "per100", loKey: "lo", hiKey: "hi", domain: [0, Math.ceil(ymax)], yFmt: (v) => fmt(v, 1),
+    title: "Conversión en vivo", ref: { value: D.constants.old_carousel_per100, label: `carrusel antiguo ${fmt(D.constants.old_carousel_per100, 2)}` }, markers: marks,
+    tipFn: (p) => `<b>${esc(p.t.slice(11, 16))}</b> · ${esc(p.model)}<br>${fmt(p.per100, 2)} compras/100 (IC ${fmt(p.lo, 2)}–${fmt(p.hi, 2)})<br>n = ${int(p.n)} · a tiempo ${pct(p.on_time)}` });
+  const rows = [...L.grid].sort((a, b) => a.per100 - b.per100).map((g) => ({ label: `${g.page} · ${g.user}`, value: g.per100, lo: g.lo, hi: g.hi,
+    color: g.per100 >= D.constants.old_carousel_per100 ? "var(--s1)" : "var(--s2)",
+    tip: `<b>${esc(g.page)} · ${esc(g.user)}</b><br>${fmt(g.per100, 2)} compras/100<br>IC ${fmt(g.lo, 2)}–${fmt(g.hi, 2)} · n = ${int(g.n)}` }));
+  $("p5-grid").innerHTML = `<div class="legend"><span><i style="background:var(--s1)"></i>≥ carrusel antiguo</span><span><i style="background:var(--s2)"></i>Por debajo</span></div>`;
+  dotCI($("p5-grid"), { rows, domain: [0, Math.ceil(Math.max(...L.grid.map((g) => Math.min(g.hi, 8))))], labelW: 190, W: 460, fmtV: (v) => fmt(v, 1), refLine: D.constants.old_carousel_per100 });
+  const worst = rows[0], best = rows[rows.length - 1];
+  $("p5-dec").innerHTML = `<b class="lbl">Lectura</b><p>Mejor segmento: <b>${esc(best.label)}</b> (${fmt(best.value, 2)}). Peor: <b>${esc(worst.label)}</b> (${fmt(worst.value, 2)}). Mirar n antes de actuar: con pocos cientos de peticiones el IC cubre ±1 compra/100.</p>`;
+  table($("p5-table"), ["Página", "Usuario", "Peticiones", "Compras", "Compras/100", "IC inf.", "IC sup."], L.grid.map((g) => [g.page, g.user, int(g.n), int(g.buys), fmt(g.per100, 2), fmt(g.lo, 2), fmt(g.hi, 2)]));
+}
+
+function renderReliability() {
+  const G = D.log, L = D.live, body = $("p6-body");
+  $("p6-src").innerHTML = `Fuente: <code>calypso_6_2_b/logs/live.log</code> (máquina servidora, hora local del log)` + (L && !L.empty ? ` y <code>team_NN.feedback</code>.` : `. La parte del feedback en vivo está pendiente de export.`);
+  if (!G) { emptyBox(body, "Sin log", "No se encontró calypso_6_2_b/logs/live.log"); return; }
+  const snaps = G.snapshots.filter((s) => s.model === G.last_model), ls = G.last_snapshot;
+  const secs = G.snap_secs_model, smin = Math.min(...secs), smax = Math.max(...secs), smed = [...secs].sort((a, b) => a - b)[Math.floor(secs.length / 2)];
+  body.innerHTML = `<div class="kpis" id="p6-kpis"></div><div class="grid2" style="margin-top:16px"><div><div id="p6-snap"></div><div id="p6-sub" style="margin-top:14px"></div></div><div><div id="p6-err"></div><div class="decision" id="p6-dec" style="margin-top:12px"></div></div></div><div id="p6-ontime" style="margin-top:14px"></div><details><summary>Ver tabla</summary><div id="p6-table"></div></details>`;
+  const reg = ls.regime, regKind = reg === "conservative_fallback" ? "warn" : "ok";
+  $("p6-kpis").innerHTML =
+    `<div class="kpi"><div class="k">Modelo en el log</div><div class="v" style="font-size:22px">${esc(G.last_model)}</div><div class="c">profile=${esc(ls.profile)} · ${int(ls.active)} productos activos</div></div>` +
+    `<div class="kpi"><div class="k">Refresco del snapshot</div><div class="v">${fmt(smed, 0)}<small> s mediana</small></div><div class="c">rango ${fmt(smin, 0)}–${fmt(smax, 0)} s · ${secs.length} snapshots</div><div class="w">Entre refrescos el modelo sirve datos de hasta ~${fmt(smax / 60, 0)} min</div></div>` +
+    `<div class="kpi"><div class="k">Régimen</div><div class="v" style="font-size:20px">${esc(reg)}</div><div class="c">${statusHTML(regKind, regKind === "warn" ? "modo prudente" : "normal")}</div></div>` +
+    `<div class="kpi"><div class="k">Peso del ML (ml_alpha)</div><div class="v">${fmt(ls.alpha, 2)}</div><div class="c">snapshot v${ls.v} · ${esc(ls.ts)}</div></div>`;
+  const W = 760, H = 200, left = 46, right = 14, top = 22, bottom = 30, svgC = $("p6-snap");
+  timeLine(svgC, { pts: snaps.map((s) => ({ t: s.ts, secs: s.secs, v: s.v, alpha: s.alpha, regime: s.regime })), yKey: "secs", domain: [0, Math.ceil(smax / 50) * 50], yFmt: (v) => v + " s", maxGapMin: 15, dots: true,
+    title: `Tiempo de refresco del snapshot · ${G.last_model} (huecos = sin snapshots en el log)`, H: 200, tipFn: (p) => `<b>Snapshot v${p.v}</b> · ${esc(p.t.slice(11))}<br>${fmt(p.secs, 1)} s · ml_alpha ${fmt(p.alpha, 2)}<br>${esc(p.regime)}` });
+  const sub = G.submissions_per_min;
+  if (sub.length) columns($("p6-sub"), { cats: sub.map((s) => s.minute), stacks: [{ name: "Respuestas enviadas", color: "var(--s1)", values: sub.map((s) => s.answers) }],
+    domainMax: Math.max(...sub.map((s) => s.answers)) * 1.1, yFmt: (v) => int(v), title: "Respuestas enviadas por minuto", H: 170, xLabelEvery: Math.ceil(sub.length / 8), xFmt: (c) => c.slice(11) });
+  const hours = [...new Set(G.errors_by_hour.map((e) => e.hour))], kinds = ["RawTree: sin conexión", "RawTree: lectura > timeout", "Fichero bloqueado (Windows)", "Otros"].filter((k) => G.errors_by_hour.some((e) => e.kind === k));
+  const colors = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)"];
+  const errDiv = $("p6-err");
+  errDiv.innerHTML = `<div class="legend">${kinds.map((k, i) => `<span><i style="background:${colors[i]}"></i>${esc(k)}</span>`).join("")}</div>`;
+  const stacks = kinds.map((k, i) => ({ name: k, color: colors[i], values: hours.map((h) => (G.errors_by_hour.find((e) => e.hour === h && e.kind === k) || {}).count || 0) }));
+  const tot = hours.map((_, i) => stacks.reduce((a, s) => a + s.values[i], 0));
+  columns(errDiv, { cats: hours, stacks, domainMax: Math.max(...tot) * 1.1, yFmt: (v) => int(v), title: "Avisos y errores del log por hora (todo el log)", H: 240, W: 440, xFmt: (c) => c.slice(5).replace(" ", " ") + "h" });
+  const totalBy = kinds.map((k, i) => [k, stacks[i].values.reduce((a, b) => a + b, 0)]);
+  $("p6-dec").innerHTML = `<b class="lbl">Lectura</b><p>Los errores son de red hacia RawTree (${totalBy.filter(([k]) => k.startsWith("RawTree")).map(([k, n]) => `${esc(k.split(": ")[1])}: ${n}`).join(", ")}), no del modelo. Cada respuesta que no llega a tiempo la sirve el fallback y cuenta en contra de fiabilidad y conversión.</p>
+    <p>${statusHTML("warn", "Snapshot lento")} ${fmt(smin, 0)}–${fmt(smax, 0)} s por refresco con ml_alpha ${fmt(ls.alpha, 2)} en <code>${esc(reg)}</code>: el ranking reacciona tarde a cambios de stock y precio.</p>`;
+  if (L && !L.empty) {
+    $("p6-ontime").innerHTML = `<div class="legend"><span><i class="line" style="background:var(--s1)"></i>% válidas a tiempo</span><span><i class="dash"></i>Umbral luz verde 90 %</span></div>`;
+    timeLine($("p6-ontime"), { pts: L.series, yKey: "on_time", domain: [Math.min(0.8, ...L.series.map((p) => p.on_time)), 1], yFmt: (v) => fmt(100 * v, 0) + " %", title: "Respuestas válidas a tiempo (feedback en vivo)", H: 220, W: 1160,
+      ref: { value: 0.9, label: "90 %" }, tipFn: (p) => `<b>${esc(p.t.slice(11, 16))}</b><br>a tiempo: <b>${pct(p.on_time)}</b><br>n = ${int(p.n)}` });
+  }
+  table($("p6-table"), ["Hora del log", "Modelo", "Snapshot", "Segundos", "ml_alpha", "Régimen"], G.snapshots.map((s) => [s.ts, s.model, "v" + s.v, fmt(s.secs, 1), fmt(s.alpha, 3), s.regime]));
+}
+
+function render() {
+  if (!D) { document.body.innerHTML = "<p style='padding:30px'>Sin datos: ejecuta <code>python dashboard/build_data.py</code>.</p>"; return; }
+  renderHeader(); renderKPIs(); renderPresets(); renderViewed(); renderAblation(); renderLive(); renderReliability();
+  $("foot").innerHTML = `Generado por <code>dashboard/build_data.py</code> a partir de los ficheros del repo. Offline (hit@10, DCG@10: condicionados a sesiones con compra, simulador propio) y en vivo (compras por 100 peticiones) son unidades distintas y nunca comparten eje. Datos en bruto: <code>dashboard/data.json</code>.`;
+}
+render();
+</script>
+</body>
+</html>
