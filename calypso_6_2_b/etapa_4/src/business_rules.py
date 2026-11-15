@@ -89,11 +89,116 @@ class CartPurchaseIndex:
                 self._base_carts[uid] = carts
             if rec:
                 self._base_recurrent[uid] = rec
+<<<<<<< HEAD
+        self._live_base_ev: dict[str, dict[str, list[float]]] = {}
+        self._live_base_carts: dict[str, tuple[tuple[str, float], ...]] = dict(self._base_carts)
+        self._live_base_rec: dict[str, tuple[tuple[str, int], ...]] = dict(self._base_recurrent)
+        self._live_base_bought: dict[str, frozenset[str]] = {}
+        self._live_base_merged: dict[str, dict[str, list[float]]] = {}
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     @property
     def n_hist_users(self) -> int:
         return len(self._hist)
 
+<<<<<<< HEAD
+    def set_live_base(self, full_live_event_rows: Iterable[Mapping[str, Any]]) -> None:
+        """Pre-aggregate full live shop.events stream once so fast ticks only touch tiny deltas."""
+        live_ev = _rows_to_map(full_live_event_rows)
+        self._live_base_ev = live_ev
+        carts = dict(self._base_carts)
+        recurrent = dict(self._base_recurrent)
+        live_bought: dict[str, frozenset[str]] = {}
+        merged_users: dict[str, dict[str, list[float]]] = {}
+        for uid, ev_u in live_ev.items():
+            merged: dict[str, list[float]] = {
+                pid: list(e) for pid, e in self._hist.get(uid, {}).items()
+            }
+            bought_now: set[str] = set()
+            for pid, ev in ev_u.items():
+                n_live = ev[0]
+                base = merged.get(pid, [0.0, 0.0, 0.0])
+                merged[pid] = [
+                    base[0] + n_live,
+                    max(base[1], ev[1]),
+                    max(base[2], ev[2]),
+                ]
+                if n_live > 0:
+                    bought_now.add(pid)
+            merged_users[uid] = merged
+            u_carts, u_rec = _derive_user(merged, self.min_recurrent)
+            if u_carts:
+                carts[uid] = u_carts
+            else:
+                carts.pop(uid, None)
+            if u_rec:
+                recurrent[uid] = u_rec
+            else:
+                recurrent.pop(uid, None)
+            if bought_now:
+                live_bought[uid] = frozenset(bought_now)
+        self._live_base_carts = carts
+        self._live_base_rec = recurrent
+        self._live_base_bought = live_bought
+        self._live_base_merged = merged_users
+
+    def build_incremental(
+        self,
+        recent_event_rows: Iterable[Mapping[str, Any]] = (),
+        feedback_purchase_rows: Iterable[Mapping[str, Any]] = (),
+    ) -> tuple[
+        dict[str, tuple[tuple[str, float], ...]],
+        dict[str, tuple[tuple[str, int], ...]],
+        dict[str, frozenset[str]],
+    ]:
+        """Apply only recent event deltas + team feedback onto pre-aggregated live+hist base (<30ms)."""
+        live_ev = _rows_to_map(recent_event_rows)
+        live_fb = _rows_to_map(feedback_purchase_rows)
+
+        carts = dict(self._live_base_carts)
+        recurrent = dict(self._live_base_rec)
+        live_bought = dict(self._live_base_bought)
+
+        for uid in set(live_ev) | set(live_fb):
+            ev_rec_u = live_ev.get(uid, {})
+            ev_base_u = self._live_base_ev.get(uid, {})
+            fb_u = live_fb.get(uid, {})
+            merged: dict[str, list[float]] = {
+                pid: list(e) for pid, e in self._hist.get(uid, {}).items()
+            }
+            bought_now: set[str] = set()
+            for pid in set(ev_base_u) | set(ev_rec_u) | set(fb_u):
+                b_ev = ev_base_u.get(pid, (0.0, 0.0, 0.0))
+                r_ev = ev_rec_u.get(pid, (0.0, 0.0, 0.0))
+                ev0 = max(b_ev[0], r_ev[0])
+                ev1 = max(b_ev[1], r_ev[1])
+                ev2 = max(b_ev[2], r_ev[2])
+                fb = fb_u.get(pid, (0.0, 0.0, 0.0))
+                n_live = max(ev0, fb[0])
+                base = merged.get(pid, [0.0, 0.0, 0.0])
+                merged[pid] = [
+                    base[0] + n_live,
+                    max(base[1], ev1, fb[1]),
+                    max(base[2], ev2, fb[2]),
+                ]
+                if n_live > 0:
+                    bought_now.add(pid)
+            u_carts, u_rec = _derive_user(merged, self.min_recurrent)
+            if u_carts:
+                carts[uid] = u_carts
+            else:
+                carts.pop(uid, None)
+            if u_rec:
+                recurrent[uid] = u_rec
+            else:
+                recurrent.pop(uid, None)
+            if bought_now:
+                live_bought[uid] = frozenset(bought_now)
+        return carts, recurrent, live_bought
+
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     def build(
         self,
         live_event_rows: Iterable[Mapping[str, Any]] = (),

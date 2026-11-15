@@ -1,37 +1,33 @@
+# Ignora tots els fitxers i carpetes solts de l'arrel excepte els 4 directoris i fitxers base del repo
+/*
+!/.gitattributes
+!/.gitignore
+!/README.md
+!/calypso_2_1/
+!/calypso_4_1_e/
+!/calypso_6_2_b/
+!/datathon-fme-2026-main/
+
+# Entorn i credencials
 .env
 *.env
 !.env.example
+.active_model.json
+
+# Python / eines de desenvolupament
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ipynb_checkpoints/
 .venv/
-material_obsolet/
+*.pkl
 
-# Etapa 1 versión especial
-etapa_1_version_especial/cache/
-etapa_1_version_especial/logs/
-
-# Models encapsulats (cache i logs en temps d'execucio)
+# Caches i logs en temps d'execucio (dins dels models conservats)
 calypso_2_1/cache/
 calypso_2_1/logs/
-calypso_3_1/cache/
-calypso_3_1/logs/
-calypso_3_2/cache/
-calypso_3_2/logs/
 calypso_4_1_e/cache/
 calypso_4_1_e/logs/
-# Etapa 2 versión especial
-etapa_2_version_especial/cache/
-etapa_2_version_especial/logs/
-calypso_3_1b/cache/
-calypso_3_1b/logs/
-calypso_4_1/cache/
-calypso_4_1/logs/
-odyseus/cache/
-odyseus/logs/
-
-# Odyseus-ML: datos descargados y datasets (pesados, se regeneran)
-odyseus_2_0/ml_data/
-odyseus_2_0/cache/
-odyseus_2_0/logs/
+calypso_6_2_b/cache/
+calypso_6_2_b/logs/
+etapa_*/cache/
+etapa_*/logs/

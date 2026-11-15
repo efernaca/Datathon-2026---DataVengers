@@ -11,6 +11,10 @@ if __name__ == "__main__" and not __package__:
 
 import argparse
 from collections import deque
+<<<<<<< HEAD
+from concurrent.futures import Future, ThreadPoolExecutor
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 from dataclasses import replace
 import json
 import logging
@@ -37,6 +41,10 @@ from .recommender import (
     _extract_feature_matrix,
     build_product_static_table,
     build_snapshot_v4_from_records,
+<<<<<<< HEAD
+    compute_live_signals,
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 )
 from .reranker import build_ips_training_dataset
 from .state import RecommenderSnapshotV4, StateStore, StaticHistoryBundle
@@ -62,7 +70,21 @@ def write_heartbeat(heartbeat_path: Path, payload: dict[str, Any]) -> None:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle, indent=2)
                 handle.flush()
+<<<<<<< HEAD
+            for attempt in range(5):
+                try:
+                    os.replace(tmp_name, heartbeat_path)
+                    return
+                except PermissionError:
+                    if attempt < 4:
+                        time.sleep(0.02 * (attempt + 1))
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+=======
             os.replace(tmp_name, heartbeat_path)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         except Exception:
             try:
                 os.unlink(tmp_name)
@@ -518,10 +540,25 @@ class Stage4BackgroundUpdater(threading.Thread):
             use_empirical_exam_curve=wp.use_empirical_exam_curve,
         )
         self._static_bundle: StaticHistoryBundle | None = cache.load_static_history()
+<<<<<<< HEAD
+        # 4.1: índice de carrito/recurrentes (histórico precalculado + capa en vivo incremental)
+        self._cart_index: CartPurchaseIndex | None = None
+        self._live_cart_full: list[dict[str, Any]] = []
+        self._latest_recent_cart: list[dict[str, Any]] = []
+        self._fb_purchase_rows: list[dict[str, Any]] = []
+        self._last_live_bought_extra: dict[str, frozenset[str]] = {}
+        self._last_full_cart_ts: float = 0.0
+        self._last_recent_cart_ts: float = 0.0
+        self._last_cat_upd_ts: float = 0.0
+        self._cached_upd_cat: list[dict[str, Any]] = []
+        self._last_snapshot_disk_save: float = time.time()
+        self._last_online_ft: float = 0.0
+=======
         # 4.1: índice de carrito/recurrentes (histórico precalculado + capa en vivo)
         self._cart_index: CartPurchaseIndex | None = None
         self._live_cart_full: list[dict[str, Any]] = []
         self._fb_purchase_rows: list[dict[str, Any]] = []
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         cur = store.get()
         self._version = cur.version if cur is not None else 0
 
@@ -571,11 +608,24 @@ class Stage4BackgroundUpdater(threading.Thread):
                 getattr(bundle, "recurrent_hist_rows", None) or [] if bundle else [],
                 min_recurrent=self.config.v4_recurrent_min_purchases,
             )
+<<<<<<< HEAD
+            if self._live_cart_full:
+                self._cart_index.set_live_base(self._live_cart_full)
+        return self._cart_index
+
+    def _cart_state(self, recent_rows: list[dict[str, Any]] | None = None) -> tuple[Any, Any, Any]:
+        idx = self._get_cart_index()
+        delta = self._latest_recent_cart if recent_rows is None else recent_rows
+        carts, rec, extra = idx.build_incremental(delta, self._fb_purchase_rows)
+        self._last_live_bought_extra = extra
+        return carts, rec, extra
+=======
         return self._cart_index
 
     def _cart_state(self, recent_rows: list[dict[str, Any]] | None = None) -> tuple[Any, Any, Any]:
         live_rows = _merge_live_cart_rows(self._live_cart_full, recent_rows or [])
         return self._get_cart_index().build(live_rows, self._fb_purchase_rows)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     def _check_profile_reload(self) -> bool:
         """Reload weights_profile.json on disk modifications without stopping serving."""
@@ -629,14 +679,217 @@ class Stage4BackgroundUpdater(threading.Thread):
         )
         return True
 
+<<<<<<< HEAD
+    def _save_snapshot_throttled(self, snap: RecommenderSnapshotV4, *, force: bool = False) -> None:
+        now = time.time()
+        if not force and (now - self._last_snapshot_disk_save) < 600.0:
+            return
+        try:
+            if self.cache.save_snapshot(snap):
+                self._last_snapshot_disk_save = now
+        except Exception as exc:
+            logger.warning("Snapshot disk cache skipped: %s", exc)
+
+    def _refresh_live_incremental(
+        self,
+        current: RecommenderSnapshotV4,
+        *,
+        upd_cat: list[dict[str, Any]],
+        oos_set: frozenset[str],
+        trend_rows: list[dict[str, Any]],
+        live_bought_rows: list[dict[str, Any]],
+        feedback_rows: list[dict[str, Any]],
+        cart_state: tuple[Any, Any, Any],
+    ) -> RecommenderSnapshotV4:
+        """Sub-second live update of trends, bandits, stock, carts & Ridge head without heavy EASE/SVD/MLP rebuild."""
+        new_products = dict(current.products)
+        new_product_ids = set(current.new_product_ids)
+        for row in upd_cat:
+            pid = str(row.get("product_id") or "").strip()
+            if pid not in new_products:
+                continue
+            info = new_products[pid]
+            raw_price = row.get("price_eur")
+            price_eur = float(raw_price) if raw_price is not None else info.price_eur
+            is_act = bool(row.get("is_active", info.is_active)) and (pid not in oos_set)
+            is_new = info.is_new or bool(int(row.get("is_new_product") or 0))
+            if is_new:
+                new_product_ids.add(pid)
+            new_products[pid] = replace(
+                info,
+                category=str(row.get("category") or info.category),
+                subcategory=str(row.get("subcategory") or info.subcategory),
+                brand=str(row.get("brand") or info.brand),
+                price_eur=price_eur,
+                description=str(row.get("description") or info.description),
+                is_active=is_act,
+                is_new=is_new,
+            )
+        for pid, info in list(new_products.items()):
+            active_now = info.is_active and (pid not in oos_set)
+            if active_now != info.is_active:
+                new_products[pid] = replace(info, is_active=active_now)
+
+        new_active = frozenset(pid for pid, info in new_products.items() if info.is_active)
+        new_product_fset = frozenset(pid for pid in new_product_ids if pid in new_active)
+        live_trend_norm, live_cvr_velocity, _ = compute_live_signals(trend_rows, new_active)
+
+        new_live_bought: dict[str, frozenset[str]] = {
+            str(r["user_id"]): frozenset(
+                str(p) for p in (r.get("live_bought_products") or ()) if p
+            )
+            for r in live_bought_rows
+            if r.get("user_id")
+        }
+        new_carts, new_recurrent, live_bought_extra = cart_state
+        if self.config.v4_live_event_purchases and live_bought_extra:
+            for uid, pids in live_bought_extra.items():
+                new_live_bought[uid] = new_live_bought.get(uid, frozenset()) | pids
+
+        if feedback_rows:
+            bandit_state = self.bandit.fit_from_feedback(feedback_rows, fallback_cvr=current.self_cvr)
+        else:
+            bandit_state = current.bandit_state
+
+        wp = self._active_profile
+        self._version += 1
+        updated = RecommenderSnapshotV4(
+            version=self._version,
+            built_at=time.time(),
+            products=new_products,
+            active_ids=new_active,
+            out_of_stock_ids=oos_set,
+            new_product_ids=new_product_fset,
+            self_cvr=current.self_cvr,
+            global_pop_norm=current.global_pop_norm,
+            max_log_price=current.max_log_price,
+            transitions=current.transitions,
+            cold_neighbors=current.cold_neighbors,
+            reverse_cold_neighbors=current.reverse_cold_neighbors,
+            ctx_3=current.ctx_3,
+            ctx_2=current.ctx_2,
+            ctx_1=current.ctx_1,
+            user_profiles=current.user_profiles,
+            live_user_bought=new_live_bought,
+            live_trend_norm=live_trend_norm,
+            fallback_ranked=tuple(pid for pid in current.fallback_ranked if pid in new_active),
+            revenue_fallback=tuple(pid for pid in current.revenue_fallback if pid in new_active),
+            product_static=current.product_static,
+            bandit_state=bandit_state,
+            ranker=current.ranker,
+            agent_overrides=current.agent_overrides,
+            user_carts=new_carts,
+            user_recurrent=new_recurrent,
+            weights_profile=wp,
+            config_override=self.config,
+            ease_neighbors=current.ease_neighbors,
+            hop2_transitions=current.hop2_transitions,
+            covisit_neighbors=current.covisit_neighbors,
+            svd_item_vectors=current.svd_item_vectors,
+            svd_pid_to_idx=current.svd_pid_to_idx,
+            subcat_top_items=current.subcat_top_items,
+            cat_top_items=current.cat_top_items,
+            subcat_price_stats=current.subcat_price_stats,
+            item_subcat_pop=current.item_subcat_pop,
+            item_cat_pop=current.item_cat_pop,
+            subcat_transitions=current.subcat_transitions,
+            live_cvr_velocity=live_cvr_velocity,
+        )
+
+        overrides, _, base_scratch = self.agent.diagnose_and_adapt(
+            self.config,
+            new_products,
+            new_active,
+            new_product_fset,
+            feedback_rows,
+            bandit_state,
+            updated.ranker,
+            weights_profile=wp,
+        )
+        updated.agent_overrides = overrides
+        updated.product_static = build_product_static_table(
+            new_products,
+            new_active,
+            updated.global_pop_norm,
+            live_trend_norm,
+            updated.max_log_price,
+            self.bandit,
+            bandit_state,
+            overrides.bandit_ucb_alpha,
+            item_subcat_pop=updated.item_subcat_pop,
+            item_cat_pop=updated.item_cat_pop,
+            self_cvr=updated.self_cvr,
+            live_cvr_velocity=live_cvr_velocity,
+        )
+
+        now_ft = time.time()
+        if (
+            (now_ft - self._last_online_ft) >= 120.0
+            and len(feedback_rows) >= 12
+            and updated.ranker is not None
+            and updated.ranker.nl_W1 is not None
+        ):
+            self.online_transfer_fine_tune(updated, feedback_rows[-60:])
+            self._last_online_ft = now_ft
+
+        self.store.update(updated)
+        self._save_snapshot_throttled(updated)
+        scratch_payload = self.agent.build_full_scratch_payload(
+            self.config,
+            self.bandit,
+            bandit_state,
+            updated.cold_neighbors,
+            new_products,
+            overrides,
+            base_scratch,
+        )
+        if scratch_payload:
+            try:
+                self.client.push_scratch(scratch_payload, timeout=2.5)
+            except Exception as exc:
+                logger.warning("Scratch telemetry push skipped: %s", exc)
+        return updated
+
+    def refresh_live_and_model(self, force_static: bool = False, force_full: bool = False) -> None:
+        """Rebuild snapshot using incremental live updates (<0.3s) or full static rebuild when needed."""
+=======
     def refresh_live_and_model(self, force_static: bool = False) -> None:
         """Rebuild snapshot using cached static history + lightweight live SQL queries."""
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         t0 = time.perf_counter()
         if force_static or self._static_bundle is None:
             bundle = self._fetch_static_history()
         else:
             bundle = self._static_bundle
 
+<<<<<<< HEAD
+        now_t = time.time()
+        if self._last_cat_upd_ts == 0.0 or now_t - self._last_cat_upd_ts >= 60.0:
+            upd_cat_res = self.client.query_safe(SQL_CATALOG_UPDATES, timeout=5.0)
+            if upd_cat_res is not None:
+                self._cached_upd_cat = upd_cat_res
+                self._last_cat_upd_ts = now_t
+        upd_cat = self._cached_upd_cat
+        oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=2.5) or []
+        oos_ids = [str(r["product_id"]) for r in oos_rows]
+        trend_rows = self.client.query_safe(SQL_LIVE_TRENDS, timeout=3.5)
+        if trend_rows is None:
+            trend_rows = self.client.query_safe(SQL_LIVE_TRENDS_FALLBACK, timeout=3.5) or []
+        live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=3.5) or []
+        feedback_rows = self._fetch_feedback_rows()
+        if not self._live_cart_full or now_t - self._last_full_cart_ts >= 300.0:
+            live_cart = self.client.query_safe(SQL_LIVE_CART_EVENTS, timeout=5.0)
+            if live_cart is not None:
+                self._live_cart_full = live_cart
+                self._last_full_cart_ts = time.time()
+                self._get_cart_index().set_live_base(live_cart)
+        elif now_t - self._last_recent_cart_ts >= 5.0:
+            recent_cart = self.client.query_safe(SQL_LIVE_CART_EVENTS_RECENT, timeout=2.5)
+            if recent_cart is not None:
+                self._latest_recent_cart = recent_cart
+                self._last_recent_cart_ts = time.time()
+        fb_purch = self.client.query_safe(_sql_feedback_purchases(self.config.team_id), timeout=3.5)
+=======
         upd_cat = self.client.query_safe(SQL_CATALOG_UPDATES, timeout=8.0) or []
         oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=4.0) or []
         oos_ids = [str(r["product_id"]) for r in oos_rows]
@@ -649,10 +902,50 @@ class Stage4BackgroundUpdater(threading.Thread):
         if live_cart is not None:
             self._live_cart_full = live_cart
         fb_purch = self.client.query_safe(_sql_feedback_purchases(self.config.team_id), timeout=5.0)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if fb_purch is not None:
             self._fb_purchase_rows = fb_purch
         cart_state = self._cart_state()
 
+<<<<<<< HEAD
+        current = self.store.get()
+        has_unseen_product = current is not None and any(
+            str(r.get("product_id") or "").strip() not in current.products
+            for r in upd_cat
+            if r.get("product_id")
+        )
+        if (
+            not force_static
+            and not force_full
+            and not has_unseen_product
+            and current is not None
+            and current.ranker is not None
+            and current.ease_neighbors
+        ):
+            updated = self._refresh_live_incremental(
+                current,
+                upd_cat=upd_cat,
+                oos_set=frozenset(oos_ids),
+                trend_rows=trend_rows,
+                live_bought_rows=live_bought_rows,
+                feedback_rows=feedback_rows,
+                cart_state=cart_state,
+            )
+            logger.info(
+                "[%s | profile=%s] Live incremental v%d ready in %.2fs | active=%d | ml_alpha=%.3f | regime=%s | fb=%d",
+                self.config.model_version,
+                self._active_profile.profile_name,
+                updated.version,
+                time.perf_counter() - t0,
+                len(updated.active_ids),
+                updated.ranker.ml_blend_alpha if updated.ranker else 0.0,
+                updated.agent_overrides.regime,
+                len(feedback_rows),
+            )
+            return
+
+=======
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         self._version += 1
         snap, scratch_payload = build_snapshot_v4_from_records(
             catalog_rows=bundle.catalog_rows,
@@ -683,7 +976,11 @@ class Stage4BackgroundUpdater(threading.Thread):
 
         snap.config_override = self.config
         self.store.update(snap)
+<<<<<<< HEAD
+        self._save_snapshot_throttled(snap, force=True)
+=======
         self.cache.save_snapshot(snap)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
         if scratch_payload:
             try:
@@ -711,15 +1008,35 @@ class Stage4BackgroundUpdater(threading.Thread):
         current = self.store.get()
         if current is None:
             return
+<<<<<<< HEAD
+        now_t = time.time()
+        oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=1.8)
+        live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=1.8)
+        recent_cart_rows: list[dict[str, Any]] | None = None
+        if self._last_recent_cart_ts == 0.0 or now_t - self._last_recent_cart_ts >= 5.0:
+            recent_cart_rows = self.client.query_safe(SQL_LIVE_CART_EVENTS_RECENT, timeout=2.0)
+            if recent_cart_rows is not None:
+                self._latest_recent_cart = recent_cart_rows
+                self._last_recent_cart_ts = time.time()
+=======
         oos_rows = self.client.query_safe(SQL_OUT_OF_STOCK, timeout=2.5)
         live_bought_rows = self.client.query_safe(_sql_live_bought(self.config.team_id), timeout=2.5)
         recent_cart_rows = self.client.query_safe(SQL_LIVE_CART_EVENTS_RECENT, timeout=2.0)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if oos_rows is None and live_bought_rows is None and recent_cart_rows is None:
             return
         if recent_cart_rows is not None:
             new_carts, new_recurrent, live_bought_extra = self._cart_state(recent_cart_rows)
         else:
+<<<<<<< HEAD
+            new_carts, new_recurrent, live_bought_extra = (
+                current.user_carts,
+                current.user_recurrent,
+                self._last_live_bought_extra,
+            )
+=======
             new_carts, new_recurrent, live_bought_extra = current.user_carts, current.user_recurrent, {}
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
         new_oos = (
             frozenset(str(r["product_id"]) for r in oos_rows)
@@ -861,7 +1178,11 @@ class Stage4BackgroundUpdater(threading.Thread):
                     or (now - last_static >= self.config.static_refresh_interval_s)
                 )
                 if profile_changed or need_static or (now - last_live >= self.config.live_refresh_interval_s):
+<<<<<<< HEAD
+                    self.refresh_live_and_model(force_static=need_static, force_full=profile_changed)
+=======
                     self.refresh_live_and_model(force_static=need_static)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
                     last_live = time.time()
                     if need_static:
                         last_static = last_live
@@ -875,7 +1196,11 @@ class Stage4BackgroundUpdater(threading.Thread):
 
 
 class CalypsoFastLoopV4:
+<<<<<<< HEAD
+    """SLA-hardened FastLoop: pulls fresh requests only, async non-blocking push, confirms _seen after push."""
+=======
     """SLA-hardened FastLoop: pulls fresh requests only, confirms _seen only after push."""
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     def __init__(
         self,
@@ -888,23 +1213,56 @@ class CalypsoFastLoopV4:
         self.store = store
         self.recommender = recommender
         self.config = config
+<<<<<<< HEAD
+        self._state_lock = threading.Lock()
         self._seen_queue: deque[str] = deque(maxlen=5000)
         self._seen_set: set[str] = set()
+        self._in_flight: set[str] = set()
+        self._fresh_ok_once: bool = False
+        self._push_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="calypso-push")
+        self._pull_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="calypso-pull")
+        self._pull_futures: deque[Future[list[dict[str, Any]]]] = deque()
+        self._last_pull_dispatch: float = 0.0
+        self._async_submitted: int = 0
+        self._async_last_batch: int = 0
+=======
+        self._seen_queue: deque[str] = deque(maxlen=5000)
+        self._seen_set: set[str] = set()
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         self._sql_pull_fresh = (
             f"SELECT request_id, ts::String AS ts, user_id, is_new_user, context, recent_views "
             f"FROM shop.requests "
             f"WHERE ts::DateTime64(3) >= "
             f"(SELECT max(ts::DateTime64(3)) FROM shop.requests) "
             f"- INTERVAL {int(config.max_request_age_ms)} MILLISECOND "
+<<<<<<< HEAD
+            f"ORDER BY ts DESC LIMIT {int(config.max_requests_per_batch)}"
+        )
+        self._sql_pull_fallback = (
+            f"SELECT request_id, ts::String AS ts, user_id, is_new_user, context, recent_views "
+            f"FROM shop.requests ORDER BY ts DESC LIMIT {min(8, int(config.max_requests_per_batch))}"
+=======
             f"ORDER BY ts ASC LIMIT {int(config.max_requests_per_batch)}"
         )
         self._sql_pull_fallback = (
             f"SELECT request_id, ts::String AS ts, user_id, is_new_user, context, recent_views "
             f"FROM shop.requests ORDER BY ts DESC LIMIT {min(12, int(config.max_requests_per_batch))}"
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         )
 
     def commit_seen(self, request_ids: list[str]) -> None:
         """Record request IDs as seen ONLY after submission succeeded."""
+<<<<<<< HEAD
+        with self._state_lock:
+            for rid in request_ids:
+                if rid in self._seen_set:
+                    continue
+                if len(self._seen_queue) == self._seen_queue.maxlen:
+                    evicted = self._seen_queue.popleft()
+                    self._seen_set.discard(evicted)
+                self._seen_queue.append(rid)
+                self._seen_set.add(rid)
+=======
         for rid in request_ids:
             if rid in self._seen_set:
                 continue
@@ -913,6 +1271,7 @@ class CalypsoFastLoopV4:
                 self._seen_set.discard(evicted)
             self._seen_queue.append(rid)
             self._seen_set.add(rid)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
     def prepare_batch(self, request_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
         """Score unseen requests and return (valid_answers, answered_request_ids)."""
@@ -920,9 +1279,22 @@ class CalypsoFastLoopV4:
         if snap is None:
             return [], []
 
+<<<<<<< HEAD
+        with self._state_lock:
+            skip_ids = self._seen_set | self._in_flight
+        fresh_rows: list[dict[str, Any]] = []
+        seen_in_batch: set[str] = set()
+        for req in request_rows:
+            rid = str(req.get("request_id") or "")
+            if not rid or rid in skip_ids or rid in seen_in_batch:
+                continue
+            seen_in_batch.add(rid)
+            fresh_rows.append(req)
+=======
         fresh_rows = [
             req for req in request_rows if str(req.get("request_id") or "") not in self._seen_set
         ]
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if not fresh_rows:
             return [], []
 
@@ -953,21 +1325,131 @@ class CalypsoFastLoopV4:
             self.commit_seen(answered_ids)
         return answers
 
+<<<<<<< HEAD
+    def _pull_requests(self) -> list[dict[str, Any]]:
+        assert self.client is not None
+        rows = self.client.query_safe(self._sql_pull_fresh, timeout=(0.9, 1.5))
+        if rows is not None:
+            self._fresh_ok_once = True
+            return rows
+        if not self._fresh_ok_once:
+            fb_rows = self.client.query_safe(self._sql_pull_fallback, timeout=(0.9, 1.5))
+            return fb_rows or []
+        return []
+
+    def step(self) -> int:
+        rows = self._pull_requests()
+=======
     def step(self) -> int:
         assert self.client is not None
         rows = self.client.query_safe(self._sql_pull_fresh, timeout=0.9)
         if rows is None:
             rows = self.client.query_safe(self._sql_pull_fallback, timeout=0.9)
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
         if not rows:
             return 0
         answers, answered_ids = self.prepare_batch(rows)
         if not answers:
             return 0
         # Push FIRST, commit_seen SECOND so failed pushes retry automatically on next tick
+<<<<<<< HEAD
+        self.client.push_submissions(answers, timeout=(0.9, 1.4))
+        self.commit_seen(answered_ids)
+        return len(answers)
+
+    def _push_worker(self, answers: list[dict[str, Any]], answered_ids: list[str]) -> None:
+        assert self.client is not None
+        try:
+            self.client.push_submissions(answers, timeout=(0.9, 1.4))
+            with self._state_lock:
+                for rid in answered_ids:
+                    self._in_flight.discard(rid)
+                    if rid not in self._seen_set:
+                        if len(self._seen_queue) == self._seen_queue.maxlen:
+                            evicted = self._seen_queue.popleft()
+                            self._seen_set.discard(evicted)
+                        self._seen_queue.append(rid)
+                        self._seen_set.add(rid)
+                n_sent = len(answers)
+                self._async_submitted += n_sent
+                self._async_last_batch = n_sent
+            logger.info("[%s] Submitted %d fresh answers", self.config.model_version, n_sent)
+        except Exception as exc:
+            with self._state_lock:
+                for rid in answered_ids:
+                    self._in_flight.discard(rid)
+            logger.warning("Calypso 6.2 async push failed (will retry): %s", exc)
+
+    def step_async(self) -> tuple[int, int]:
+        """Pull & score fresh requests without blocking on HTTP POST acknowledgements."""
+        rows = self._pull_requests()
+        if not rows:
+            return 0, 0
+        answers, answered_ids = self.prepare_batch(rows)
+        if not answers:
+            return len(rows), 0
+        with self._state_lock:
+            self._in_flight.update(answered_ids)
+        self._push_pool.submit(self._push_worker, answers, answered_ids)
+        return len(rows), len(answers)
+
+    def step_pipelined(
+        self,
+        *,
+        pull_interval_s: float = 0.20,
+        max_in_flight_pulls: int = 3,
+    ) -> tuple[int, int, bool]:
+        """Overlap HTTP request pulls so ClickHouse RTT never stalls fresh arrivals."""
+        now_t = time.monotonic()
+        if len(self._pull_futures) < max_in_flight_pulls and (
+            not self._pull_futures or (now_t - self._last_pull_dispatch) >= pull_interval_s
+        ):
+            self._pull_futures.append(self._pull_pool.submit(self._pull_requests))
+            self._last_pull_dispatch = now_t
+
+        completed_rows: list[dict[str, Any]] = []
+        had_completed = False
+        pending: deque[Future[list[dict[str, Any]]]] = deque()
+        while self._pull_futures:
+            fut = self._pull_futures.popleft()
+            if fut.done():
+                had_completed = True
+                try:
+                    rows = fut.result()
+                    if rows:
+                        completed_rows.extend(rows)
+                except Exception as exc:
+                    logger.warning("Calypso 6.2 pipelined pull error: %s", exc)
+            else:
+                pending.append(fut)
+        self._pull_futures = pending
+
+        if not completed_rows:
+            return 0, 0, had_completed
+
+        answers, answered_ids = self.prepare_batch(completed_rows)
+        if not answers:
+            return len(completed_rows), 0, True
+
+        with self._state_lock:
+            self._in_flight.update(answered_ids)
+        self._push_pool.submit(self._push_worker, answers, answered_ids)
+        return len(completed_rows), len(answers), True
+
+    def drain_async_stats(self) -> tuple[int, int]:
+        with self._state_lock:
+            return self._async_submitted, self._async_last_batch
+
+    def close(self) -> None:
+        self._pull_pool.shutdown(wait=False)
+        self._push_pool.shutdown(wait=False)
+
+=======
         self.client.push_submissions(answers, timeout=0.9)
         self.commit_seen(answered_ids)
         return len(answers)
 
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
 
 def _resolve_runtime_profile(preset: str = "", weights_profile: str = "") -> tuple[WeightsProfile, ConfigV4]:
     base_cfg = ConfigV4.from_env(weights_profile_path=weights_profile or None)
@@ -1129,9 +1611,15 @@ def main() -> None:
     parser.add_argument("--model-version", type=str, default="", help="Override model_version label")
     parser.add_argument("--preset", type=str, default="", help="Override WeightsProfile preset name")
     parser.add_argument("--weights-profile", type=str, default="", help="Path to custom weights_profile JSON")
+<<<<<<< HEAD
+    parser.add_argument("--poll-interval", type=float, default=0.06, help="Fast-loop poll seconds")
+    parser.add_argument("--stock-interval", type=float, default=2.5, help="Stock check seconds")
+    parser.add_argument("--live-interval", type=float, default=45.0, help="Live feedback refit seconds")
+=======
     parser.add_argument("--poll-interval", type=float, default=0.12, help="Fast-loop poll seconds")
     parser.add_argument("--stock-interval", type=float, default=1.5, help="Stock check seconds")
     parser.add_argument("--live-interval", type=float, default=15.0, help="Live feedback refit seconds")
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     args = parser.parse_args()
 
     if args.self_check:
@@ -1189,9 +1677,15 @@ def main() -> None:
             heartbeat_path,
             {
                 "pid": pid,
+<<<<<<< HEAD
+                "model_name": "calypso 6.2b",
+                "model_version": cfg.model_version,
+                "folder": "calypso_6_2_b",
+=======
                 "model_name": "calypso 6.2a",
                 "model_version": cfg.model_version,
                 "folder": "calypso_6_2_a",
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
                 "profile": (
                     snap.weights_profile.profile_name
                     if (snap is not None and snap.weights_profile)
@@ -1249,6 +1743,38 @@ def main() -> None:
         pid,
     )
 
+<<<<<<< HEAD
+    last_hb_written = 0.0
+
+    try:
+        while not stop_event.is_set():
+            step_ok = False
+            dispatched = 0
+            had_completed = False
+            try:
+                pulled, dispatched, had_completed = loop.step_pipelined()
+                step_ok = True
+            except Exception as exc:
+                logger.error("Calypso 6.2 FastLoop error: %s", exc)
+                time.sleep(0.25)
+
+            submitted_total, last_batch_size = loop.drain_async_stats()
+            now_t = time.time()
+            if step_ok and (last_hb_written == 0.0 or now_t - last_hb_written >= 1.0):
+                _emit_hb(
+                    ready=True,
+                    snap=store.get(),
+                    submitted_total=submitted_total,
+                    last_batch=last_batch_size,
+                )
+                last_hb_written = now_t
+
+            time.sleep(0.015 if dispatched > 0 else (0.025 if not had_completed else cfg.poll_interval_s))
+    finally:
+        loop.close()
+
+    submitted_total, last_batch_size = loop.drain_async_stats()
+=======
     submitted_total = 0
     last_batch_size = 0
     last_hb_written = 0.0
@@ -1278,6 +1804,7 @@ def main() -> None:
 
         time.sleep(cfg.poll_interval_s)
 
+>>>>>>> cbe71fec6826253cc30a383015bc169527273ef9
     _emit_hb(ready=False, snap=store.get(), submitted_total=submitted_total, last_batch=last_batch_size)
 
 
