@@ -334,12 +334,15 @@ def _prepare_request_signals(
     decay = wp.recency_decay if wp is not None else recency_decay
     last_prod_factor = wp.view_last_product_page_factor if wp is not None else 0.65
     view_base = wp.view_base_bonus if wp is not None else 0.0
+    self_view_linear = bool(getattr(wp, "legacy_self_view_linear", False)) if wp is not None else False
     for rev_idx, seen_pid in enumerate(reversed(recent_views)):
         w_rec = decay**rev_idx
         if seen_pid in snapshot.active_ids and seen_pid not in self_view_scores:
             page_factor = last_prod_factor if (page == "product" and rev_idx == 0) else 1.0
             base_cvr = snapshot.self_cvr.get(seen_pid, 0.02)
-            if view_base > 0.0:
+            if self_view_linear:
+                self_view_scores[seen_pid] = (0.55 + 0.45 * base_cvr) * w_rec * page_factor
+            elif view_base > 0.0:
                 pop_f = 0.45 + 0.55 * snapshot.global_pop_norm.get(seen_pid, 0.3)
                 cvr_f = view_base * 0.20 + (1.0 - view_base) * base_cvr
                 self_view_scores[seen_pid] = cvr_f * pop_f * w_rec * page_factor
@@ -593,12 +596,17 @@ def build_snapshot_v4_from_records(
         pid: hist_purchases.get(pid, 0.0) + wp.live_pop_mix_weight * live_buys_equiv.get(pid, 0.0)
         for pid in active_ids
     }
+    ranked_by_sales = sorted(
+        active_ids,
+        key=lambda pid: (mix_buys[pid], raw_pop.get(pid, 0.0), pid),
+        reverse=True,
+    )
+    max_cal_rank = max(int(getattr(wp, "cal_max_rank", 3000)), 1)
+    sales_rank: dict[str, int] = {
+        pid: min(idx, max_cal_rank) if (mix_buys[pid] > 0.0 or raw_pop.get(pid, 0.0) > 0.0) else max_cal_rank
+        for idx, pid in enumerate(ranked_by_sales)
+    }
     if wp.use_sales_rank_base_rate and active_ids:
-        ranked_by_sales = sorted(
-            active_ids,
-            key=lambda pid: (mix_buys[pid], raw_pop.get(pid, 0.0), pid),
-            reverse=True,
-        )
         denom_rank = math.log(max(len(ranked_by_sales) + 1, 100))
         blend_w = min(max(wp.sales_rank_blend_weight, 0.0), 1.0)
         global_pop_norm: dict[str, float] = {}
@@ -613,6 +621,8 @@ def build_snapshot_v4_from_records(
 
     raw_trans: dict[str, list[tuple[str, float]]] = defaultdict(list)
     gamma = min(max(wp.transition_dest_pop_gamma, 0.0), 1.0)
+    eff_lift_beta = float(getattr(wp, "lift_beta", cfg.lift_beta))
+    eff_lift_prior = max(float(getattr(wp, "lift_prior_pop", cfg.lift_prior_pop)), 1.0)
     for row in trans_rows_list:
         src = str(row.get("src_product") or "").strip()
         dst = str(row.get("dst_product") or "").strip()
@@ -622,7 +632,7 @@ def build_snapshot_v4_from_records(
         if raw_score <= 0.0:
             continue
         dst_pop = max(math.expm1(raw_pop.get(dst, 0.0)), 0.0)
-        lift_score = raw_score / ((dst_pop + cfg.lift_prior_pop) ** cfg.lift_beta)
+        lift_score = raw_score / ((dst_pop + eff_lift_prior) ** eff_lift_beta)
         if gamma > 0.0:
             lift_score *= (1.0 - gamma) + gamma * global_pop_norm.get(dst, 0.25)
         raw_trans[src].append((dst, lift_score))
@@ -813,9 +823,10 @@ def build_snapshot_v4_from_records(
 
     fallback_scores: dict[str, float] = {}
     tie_mode = wp.tie_break_mode
+    fb_live_w = float(getattr(wp, "fallback_live_trend_weight", 0.6))
     for pid in active_ids:
         p_obj = products[pid]
-        pop_s = global_pop_norm.get(pid, 0.0) + 0.6 * live_trend_norm.get(pid, 0.0)
+        pop_s = global_pop_norm.get(pid, 0.0) + fb_live_w * live_trend_norm.get(pid, 0.0)
         lp_s = math.log1p(max(p_obj.price_eur, 0.0)) / max_log_price
         if tie_mode == "cheap":
             tie_term = -abs(wp.revenue_tie_weight or -0.08) * lp_s
@@ -877,6 +888,7 @@ def build_snapshot_v4_from_records(
         user_carts=user_carts,
         user_recurrent=user_recurrent,
         weights_profile=wp,
+        sales_rank=sales_rank,
     )
 
     # Precompute static lookup table once before IPS dataset extraction
@@ -988,7 +1000,7 @@ class CalypsoRecommenderV4:
                 _add(pid)
 
         # 3. Co-views / transitions and bidirectional cold-start neighbors (capped so Top-N always fits)
-        trans_cap = max(pool_limit - guaranteed_top - 8, 44)
+        trans_cap = max(min(pool_limit - guaranteed_top - 4, int(pool_limit * 0.72)), 20)
         for seen_pid in reversed(recent_views):
             if len(candidates) >= trans_cap:
                 break
@@ -1153,7 +1165,7 @@ class CalypsoRecommenderV4:
         """Modular Slot-Gated scoring driven by WeightsProfile & 5 user segments."""
         cfg = _cfg if _cfg is not None else self.config
         wp = snapshot.weights_profile if snapshot.weights_profile is not None else cfg.load_weights_profile()
-        uid, is_new_user, _, _, _, recent_views = parsed
+        uid, is_new_user, _, _, page, recent_views = parsed
         has_session_intent = bool(recent_views)
         is_cold_session = is_new_user or any(
             pid in snapshot.new_product_ids for pid in recent_views
@@ -1201,6 +1213,11 @@ class CalypsoRecommenderV4:
         )
         anchor_cat = str(extra_signals.get("anchor_cat") or "")
 
+        scoring_mode_req = str(getattr(wp, "scoring_mode", "legacy") or "legacy")
+        use_cal_mode = scoring_mode_req in {"calibrated", "hybrid"}
+        active_cart_val = float(getattr(wp, "cal_w_cart_active", wp.cart_active_score_bonus)) if use_cal_mode else wp.cart_active_score_bonus
+        forgot_cart_val = float(getattr(wp, "cal_w_cart_forgotten", wp.cart_forgotten_score_bonus)) if use_cal_mode else wp.cart_forgotten_score_bonus
+
         cart_bonus_map: dict[str, float] = {}
         rec_bonus_map: dict[str, float] = {}
         if uid and not is_new_user:
@@ -1212,11 +1229,11 @@ class CalypsoRecommenderV4:
                 for c_pid, cart_ts in u_carts:
                     age_ms = max(cur_ms - cart_ts, 0.0)
                     if age_ms <= active_ms:
-                        if wp.cart_active_score_bonus > 0.0:
-                            cart_bonus_map[c_pid] = wp.cart_active_score_bonus
-                    elif age_ms <= max_forgot_ms and wp.cart_forgotten_score_bonus > 0.0:
+                        if active_cart_val > 0.0:
+                            cart_bonus_map[c_pid] = active_cart_val
+                    elif age_ms <= max_forgot_ms and forgot_cart_val > 0.0:
                         age_days = age_ms / 86_400_000.0
-                        cart_bonus_map[c_pid] = wp.cart_forgotten_score_bonus * math.exp(-age_days / 7.0)
+                        cart_bonus_map[c_pid] = forgot_cart_val * math.exp(-age_days / 7.0)
             u_rec = snapshot.user_recurrent.get(uid)
             if u_rec and wp.recurrent_score_bonus > 0.0:
                 for r_pid, n_buys in u_rec:
@@ -1299,112 +1316,221 @@ class CalypsoRecommenderV4:
         cheap_asym = wp.price_cheap_asymmetry
         bg_same = wp.bg_penalty_same_subcat
         bg_diff = wp.bg_penalty_diff_subcat
+        scoring_mode = str(getattr(wp, "scoring_mode", "legacy") or "legacy")
+        use_calibrated = scoring_mode in {"calibrated", "hybrid"}
+        use_hybrid_ml = scoring_mode == "hybrid"
+        self_view_linear = bool(getattr(wp, "legacy_self_view_linear", False))
 
-        for idx, pid in enumerate(candidates):
-            if has_seq:
-                raw_seq = seq_get(pid, 0.0)
-                s_seq = (1.8 if raw_seq > 1.8 else raw_seq) * m_seq
-            else:
-                s_seq = 0.0
-            if has_sv:
-                sv_raw = sv_get(pid, 0.0)
-                if sv_raw > 0.0:
-                    sv5 = sv_raw * 5.0
-                    s_self = 1.2 if sv5 > 1.2 else sv5
+        if use_calibrated:
+            sales_rank_map = getattr(snapshot, "sales_rank", None)
+            if not sales_rank_map:
+                sales_rank_map = {p: i for i, p in enumerate(snapshot.fallback_ranked)}
+            max_cal_rank = max(int(getattr(wp, "cal_max_rank", 3000)), 1)
+            rel_cap = max(float(getattr(wp, "cal_rel_cap", 1.0)), 1e-6)
+            rank_mult = float(getattr(wp, "cal_home_rank_mult", 1.25)) if (page == "home" or not has_session_intent) else 1.0
+            eff_cal_rank = float(getattr(wp, "cal_w_rank", 0.69)) * rank_mult
+            cal_w_seen = float(getattr(wp, "cal_w_seen", 2.30))
+            cal_w_rel = float(getattr(wp, "cal_w_rel", 0.61))
+            cal_w_intent = float(getattr(wp, "cal_w_intent", 0.45))
+            cal_w_aff = float(getattr(wp, "cal_w_aff", 0.30))
+            cal_w_pcompat = float(getattr(wp, "cal_w_pcompat", 0.15))
+            cal_w_ctx = float(getattr(wp, "cal_w_ctx", 0.25))
+            cal_w_cold = float(getattr(wp, "cal_w_cold", 0.45))
+            cal_w_subcat = float(getattr(wp, "cal_w_subcat", 0.12))
+            cal_w_brand = float(getattr(wp, "cal_w_brand", 0.06))
+            cal_w_ltrend = float(getattr(wp, "cal_w_live_trend", 0.35))
+            cal_w_disc = float(getattr(wp, "cal_w_discount", 0.18))
+            cal_rec_val = float(getattr(wp, "cal_w_recurrent", 0.45))
+            cal_ml_w = float(getattr(wp, "cal_hybrid_ml_weight", 0.25)) if use_hybrid_ml else 0.0
+            last_seen_pid = recent_views[-1] if recent_views else ""
+            last_prod_f = wp.view_last_product_page_factor
+
+            for idx, pid in enumerate(candidates):
+                rk = sales_rank_map.get(pid, max_cal_rank)
+                score_p = -eff_cal_rank * math.log(rk + 1.0)
+                sv_raw = sv_get(pid, 0.0) if has_sv else 0.0
+                is_seen = sv_raw > 0.0
+                if is_seen:
                     cand_viewed[idx] = True
+                    p_factor = last_prod_f if (page == "product" and pid == last_seen_pid) else 1.0
+                    score_p += cal_w_seen * p_factor
                 else:
-                    s_self = 0.0
-            else:
-                s_self = 0.0
-            s_intent = int_get(pid, 0.0) * m_int if has_int else 0.0
-            s_ctx = ctx_get(pid, 0.0) * m_ctx if has_ctx else 0.0
-            s_rev = rev_get(pid, 0.0) * m_cld if has_rev else 0.0
-            s_fwd = fwd_get(pid, 0.0) * m_cld if has_fwd else 0.0
+                    s_seq_raw = seq_get(pid, 0.0) if has_seq else 0.0
+                    if s_seq_raw > 0.0:
+                        s_seq_val = min(s_seq_raw, rel_cap) / rel_cap
+                        score_p += cal_w_rel * (s_seq_val * m_seq if use_hybrid_ml else s_seq_val)
 
-            p_info = prod_get(pid)
-            p_cat = p_info.category if p_info is not None else ""
-            discount_r = p_info.discount_ratio if p_info is not None else 0.0
-            cand_cats[idx] = p_cat
-            rule_bonus = discount_w * discount_r
-            if has_cart_b:
-                rule_bonus += cart_b_get(pid, 0.0)
-            if has_rec_b:
-                rule_bonus += rec_b_get(pid, 0.0)
+                if has_cart_b:
+                    score_p += cart_b_get(pid, 0.0)
+                if has_rec_b and rec_b_get(pid, 0.0) > 0.0:
+                    score_p += cal_rec_val
 
-            st = st_get(pid)
-            if st is not None:
-                sc, br, gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b = st
-                cand_lp[idx] = lp_norm
-                s_aff = 0.0
-                if has_aff:
-                    s_aff = aff_get((sc, br), 0.0)
-                    if s_aff == 0.0:
-                        s_aff = aff_get((sc, ""), 0.0) * 0.6
-                    s_aff *= m_aff
+                s_intent = min(int_get(pid, 0.0), 1.0) if has_int else 0.0
+                s_ctx = ctx_get(pid, 0.0) if has_ctx else 0.0
+                s_rev = rev_get(pid, 0.0) if has_rev else 0.0
+                s_fwd = fwd_get(pid, 0.0) if has_fwd else 0.0
+                s_cold = min(max(s_rev, s_fwd), 1.0)
 
-                s_pcompat = 0.0
-                if has_price_hist and lp_norm > 0.0:
-                    s_pcompat = _compute_price_compat(
-                        lp_norm * max_lp,
-                        mean_lp,
-                        std_lp,
-                        z2_clip=z2_clip,
-                        cheap_asymmetry=cheap_asym,
-                    )
+                p_info = prod_get(pid)
+                p_cat = p_info.category if p_info is not None else ""
+                discount_r = p_info.discount_ratio if p_info is not None else 0.0
+                cand_cats[idx] = p_cat
 
-                same_sc = bool(anchor_subcat and sc == anchor_subcat)
-                same_cat = bool(anchor_cat and p_cat == anchor_cat)
-                same_br = bool(anchor_brand and br == anchor_brand)
-                bg_score = w5 * s_ctx + w6 * (gpop * m_pop) + w7 * (ltrend * m_trd) + exploit_d
-                if (
-                    v3_bg_penalty
-                    and has_session_intent
-                    and s_seq == 0.0
-                    and s_intent == 0.0
-                    and s_fwd == 0.0
-                    and s_self == 0.0
-                ):
-                    bg_score *= bg_same if same_sc else bg_diff
-
-                score_p = (
-                    w0 * s_seq
-                    + w1 * s_self
-                    + w2 * s_intent
-                    + w3 * s_aff
-                    + w4 * s_pcompat
-                    + bg_score
-                    + w8 * is_new_f
-                    + w9 * s_rev
-                    + w10 * s_fwd
-                    + w11 * lp_norm
-                    + (subcat_bonus_w if same_sc else (same_cat_w if same_cat else 0.0))
-                    + (brand_bonus_w if same_br else 0.0)
-                    + rule_bonus
+                score_p += (
+                    cal_w_intent * (s_intent * m_int if use_hybrid_ml else s_intent)
+                    + cal_w_ctx * (s_ctx * m_ctx if use_hybrid_ml else s_ctx)
+                    + cal_w_cold * (s_cold * m_cld if use_hybrid_ml else s_cold)
+                    + cal_w_disc * discount_r
                 )
+
+                st = st_get(pid)
+                ucb_b = 0.0
+                if st is not None:
+                    sc, br, _gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b = st
+                    cand_lp[idx] = lp_norm
+                    cand_subcats[idx] = sc
+                    cand_brands[idx] = br
+                    score_p += cal_w_ltrend * (ltrend * m_trd if use_hybrid_ml else ltrend)
+                    if has_aff:
+                        s_aff = aff_get((sc, br), 0.0)
+                        if s_aff == 0.0:
+                            s_aff = aff_get((sc, ""), 0.0) * 0.6
+                        score_p += cal_w_aff * (s_aff * m_aff if use_hybrid_ml else s_aff)
+                    if has_price_hist and lp_norm > 0.0:
+                        score_p += cal_w_pcompat * _compute_price_compat(
+                            lp_norm * max_lp,
+                            mean_lp,
+                            std_lp,
+                            z2_clip=z2_clip,
+                            cheap_asymmetry=cheap_asym,
+                        )
+                    if not is_seen:
+                        if anchor_subcat and sc == anchor_subcat:
+                            score_p += cal_w_subcat
+                        elif anchor_cat and p_cat == anchor_cat:
+                            score_p += cal_w_subcat * 0.45
+                        if anchor_brand and br == anchor_brand:
+                            score_p += cal_w_brand
+                    if use_hybrid_ml:
+                        score_p += cal_ml_w * exploit_d
+                    is_n = is_new_f > 0.5
+                    cand_is_new[idx] = is_n
+                    if is_n and s_cold > 0.35 and exploit_d > 0.02:
+                        cand_confirmed_cold[idx] = True
+                else:
+                    score_p += cal_w_ltrend * snapshot.live_trend_norm.get(pid, 0.0)
+
                 prec_scores[idx] = score_p
                 full_scores[idx] = score_p + ucb_b
-                cand_subcats[idx] = sc
-                cand_brands[idx] = br
-                is_n = is_new_f > 0.5
-                cand_is_new[idx] = is_n
-                if is_n and s_rev > 0.35 and exploit_d > 0.02:
-                    cand_confirmed_cold[idx] = True
-            else:
-                gpop = snapshot.global_pop_norm.get(pid, 0.0) * m_pop
-                ltrend = snapshot.live_trend_norm.get(pid, 0.0) * m_trd
-                score_p = (
-                    w0 * s_seq
-                    + w1 * s_self
-                    + w2 * s_intent
-                    + w5 * s_ctx
-                    + w6 * gpop
-                    + w7 * ltrend
-                    + w9 * s_rev
-                    + w10 * s_fwd
-                    + rule_bonus
-                )
-                prec_scores[idx] = score_p
-                full_scores[idx] = score_p
+        else:
+            for idx, pid in enumerate(candidates):
+                if has_seq:
+                    raw_seq = seq_get(pid, 0.0)
+                    s_seq = (1.8 if raw_seq > 1.8 else raw_seq) * m_seq
+                else:
+                    s_seq = 0.0
+                if has_sv:
+                    sv_raw = sv_get(pid, 0.0)
+                    if sv_raw > 0.0:
+                        if self_view_linear:
+                            s_self = min(sv_raw * 2.0, 2.2)
+                        else:
+                            sv5 = sv_raw * 5.0
+                            s_self = 1.2 if sv5 > 1.2 else sv5
+                        cand_viewed[idx] = True
+                    else:
+                        s_self = 0.0
+                else:
+                    s_self = 0.0
+                s_intent = int_get(pid, 0.0) * m_int if has_int else 0.0
+                s_ctx = ctx_get(pid, 0.0) * m_ctx if has_ctx else 0.0
+                s_rev = rev_get(pid, 0.0) * m_cld if has_rev else 0.0
+                s_fwd = fwd_get(pid, 0.0) * m_cld if has_fwd else 0.0
+
+                p_info = prod_get(pid)
+                p_cat = p_info.category if p_info is not None else ""
+                discount_r = p_info.discount_ratio if p_info is not None else 0.0
+                cand_cats[idx] = p_cat
+                rule_bonus = discount_w * discount_r
+                if has_cart_b:
+                    rule_bonus += cart_b_get(pid, 0.0)
+                if has_rec_b:
+                    rule_bonus += rec_b_get(pid, 0.0)
+
+                st = st_get(pid)
+                if st is not None:
+                    sc, br, gpop, ltrend, is_new_f, lp_norm, exploit_d, ucb_b = st
+                    cand_lp[idx] = lp_norm
+                    s_aff = 0.0
+                    if has_aff:
+                        s_aff = aff_get((sc, br), 0.0)
+                        if s_aff == 0.0:
+                            s_aff = aff_get((sc, ""), 0.0) * 0.6
+                        s_aff *= m_aff
+
+                    s_pcompat = 0.0
+                    if has_price_hist and lp_norm > 0.0:
+                        s_pcompat = _compute_price_compat(
+                            lp_norm * max_lp,
+                            mean_lp,
+                            std_lp,
+                            z2_clip=z2_clip,
+                            cheap_asymmetry=cheap_asym,
+                        )
+
+                    same_sc = bool(anchor_subcat and sc == anchor_subcat)
+                    same_cat = bool(anchor_cat and p_cat == anchor_cat)
+                    same_br = bool(anchor_brand and br == anchor_brand)
+                    bg_score = w5 * s_ctx + w6 * (gpop * m_pop) + w7 * (ltrend * m_trd) + exploit_d
+                    if (
+                        v3_bg_penalty
+                        and has_session_intent
+                        and s_seq == 0.0
+                        and s_intent == 0.0
+                        and s_fwd == 0.0
+                        and s_self == 0.0
+                    ):
+                        bg_score *= bg_same if same_sc else bg_diff
+
+                    score_p = (
+                        w0 * s_seq
+                        + w1 * s_self
+                        + w2 * s_intent
+                        + w3 * s_aff
+                        + w4 * s_pcompat
+                        + bg_score
+                        + w8 * is_new_f
+                        + w9 * s_rev
+                        + w10 * s_fwd
+                        + w11 * lp_norm
+                        + (subcat_bonus_w if same_sc else (same_cat_w if same_cat else 0.0))
+                        + (brand_bonus_w if same_br else 0.0)
+                        + rule_bonus
+                    )
+                    prec_scores[idx] = score_p
+                    full_scores[idx] = score_p + ucb_b
+                    cand_subcats[idx] = sc
+                    cand_brands[idx] = br
+                    is_n = is_new_f > 0.5
+                    cand_is_new[idx] = is_n
+                    if is_n and s_rev > 0.35 and exploit_d > 0.02:
+                        cand_confirmed_cold[idx] = True
+                else:
+                    gpop = snapshot.global_pop_norm.get(pid, 0.0) * m_pop
+                    ltrend = snapshot.live_trend_norm.get(pid, 0.0) * m_trd
+                    score_p = (
+                        w0 * s_seq
+                        + w1 * s_self
+                        + w2 * s_intent
+                        + w5 * s_ctx
+                        + w6 * gpop
+                        + w7 * ltrend
+                        + w9 * s_rev
+                        + w10 * s_fwd
+                        + rule_bonus
+                    )
+                    prec_scores[idx] = score_p
+                    full_scores[idx] = score_p
 
         if has_session_intent:
             mmr_start = wp.mmr_start_slot_session

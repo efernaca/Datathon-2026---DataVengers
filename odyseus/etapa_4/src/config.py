@@ -174,6 +174,8 @@ class ConfigV4:
         kwargs: dict[str, Any] = {
             "candidate_pool_size": wp.candidate_pool_size,
             "recency_decay": wp.recency_decay,
+            "lift_beta": wp.lift_beta,
+            "lift_prior_pop": wp.lift_prior_pop,
             "self_view_weight": wp.w_self_cvr_view,
             "intent_weight": wp.w_intent_score,
             "affinity_weight": wp.w_user_affinity,

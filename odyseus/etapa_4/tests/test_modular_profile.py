@@ -63,6 +63,8 @@ class TestModularWeightsProfile(unittest.TestCase):
             "user_trend_focus",
             "product_profile_focus",
             "calibrated_m3",
+            "calibrated_logit",
+            "calibrated_hybrid",
         }
         self.assertEqual(set(list_presets()), expected)
         with tempfile.TemporaryDirectory() as tmp:

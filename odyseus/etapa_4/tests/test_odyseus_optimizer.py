@@ -20,6 +20,7 @@ from src.odyseus_optimizer import (  # noqa: E402
     MODEL_VERSION_LABEL,
     PARAM_GROUPS,
     PARAM_SPECS,
+    _is_param_relevant,
     _prepare_structural_tables,
     _strip_future_test_purchases,
     _update_snapshot_for_profile,
@@ -28,6 +29,7 @@ from src.odyseus_optimizer import (  # noqa: E402
     get_param_value,
     run_odyseus_optimization,
 )
+from src.recommender import CalypsoRecommenderV4  # noqa: E402
 from src.weights_profile import WeightsProfile, get_preset  # noqa: E402
 
 
@@ -191,6 +193,69 @@ class TestOdyseusOptimizer51(unittest.TestCase):
             self.assertEqual(archive2["total_iterations"], 6)
             self.assertEqual([it["iter"] for it in archive2["iterations"]], [0, 1, 2, 3, 4, 5])
             self.assertGreaterEqual(res2["best_objective"], res1["best_objective"])
+
+    def test_calibrated_and_hybrid_scoring_modes_and_relevance_filter(self) -> None:
+        syn = generate_synthetic_dataset_v4(
+            seed=13,
+            n_warm_products=80,
+            n_new_products=8,
+            n_warm_users=60,
+            n_history_sessions=160,
+            n_feedback_sessions=40,
+            n_test_sessions=20,
+        )
+        snap = syn["snap_v4"]
+        v4_rec = syn["v4_records"]
+        struct_prep = _prepare_structural_tables(
+            snap,
+            v4_rec["popularity_rows"],
+            v4_rec["transition_rows"],
+        )
+        base_alpha = float(snap.agent_overrides.bandit_ucb_alpha)
+        row = syn["df_test"].iloc[0]
+
+        for preset_name in ("calibrated_logit", "calibrated_hybrid"):
+            wp = get_preset(preset_name)
+            new_snap, new_cfg = _update_snapshot_for_profile(
+                snap,
+                wp,
+                base_ucb_alpha=base_alpha,
+                struct_prep=struct_prep,
+            )
+            self.assertTrue(len(new_snap.sales_rank) > 0)
+            rec = CalypsoRecommenderV4(new_cfg)
+            out = rec.recommend(row, new_snap)
+            self.assertEqual(len(out), 10)
+            self.assertEqual(len(set(out)), 10)
+
+        self.assertFalse(_is_param_relevant("cal_w_rank", get_preset("conversion_first")))
+        self.assertTrue(_is_param_relevant("w_global_pop", get_preset("conversion_first")))
+        self.assertFalse(_is_param_relevant("w_global_pop", get_preset("calibrated_logit")))
+        self.assertTrue(_is_param_relevant("cal_w_rank", get_preset("calibrated_logit")))
+
+    def test_duration_budget_and_report_export(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            history_path = tmp_dir / "odyseus_history.json"
+            base_wp = get_preset("conversion_first")
+            res = run_odyseus_optimization(
+                MODEL_ROOT,
+                base_profile=base_wp,
+                history_path=history_path,
+                eval_mode="synthetic",
+                iters=100,
+                duration_seconds=0.35,
+                seed=7,
+                n_syn=80,
+                eval_presets_first=False,
+                export_report=True,
+            )
+            self.assertGreaterEqual(res["total_iterations"], 2)
+            self.assertLess(res["total_iterations"], 100)
+            self.assertTrue((tmp_dir / "odyseus_iterations.csv").is_file())
+            self.assertTrue((tmp_dir / "INFORME_ODYSEUS_5_1F.md").is_file())
+            csv_lines = (tmp_dir / "odyseus_iterations.csv").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(csv_lines), res["total_iterations"] + 1)
 
 
 if __name__ == "__main__":

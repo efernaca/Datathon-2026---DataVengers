@@ -1,8 +1,8 @@
 {
-  "active_folder": "odyseus",
-  "model_name": "odyseus",
-  "model_version": "calypso-5.1f",
-  "pid": 14112,
-  "log_path": "C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\odyseus\\logs\\live.log",
-  "updated_at": "2026-11-14T21:49:19+00:00"
+  "active_folder": "calypso_6_1",
+  "model_name": "calypso 6.1",
+  "model_version": "calypso-6.1",
+  "pid": 22648,
+  "log_path": "C:\\Users\\Èric Universitat\\OneDrive - Universitat de Barcelona\\Documentos\\GitHub\\Datathon 2026 - DataVengers\\calypso_6_1\\logs\\live.log",
+  "updated_at": "2026-11-15T03:02:52+00:00"
 }

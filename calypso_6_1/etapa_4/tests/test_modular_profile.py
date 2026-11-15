@@ -215,6 +215,7 @@ class TestModularWeightsProfile(unittest.TestCase):
         wp = PRESETS["conversion_first"]
         self.assertGreaterEqual(wp.scalar_count(), 220)
         self.assertEqual(NUM_FEATURES, 40)
+        self.assertEqual(ConfigV4.from_profile(wp).candidate_pool_size, 76)
 
         snap = self.syn["snap_v4"]
         self.assertEqual(snap.ranker.prior_weights.shape, (40,))
@@ -222,7 +223,33 @@ class TestModularWeightsProfile(unittest.TestCase):
         self.assertTrue(snap.hop2_transitions)
         self.assertGreater(snap.svd_item_vectors.shape[0], 0)
         self.assertEqual(snap.svd_item_vectors.shape[1], wp.svd_dim)
-        self.assertIsNotNone(snap.ranker.nl_W1)
+
+        # Explicitly verify Hybrid Layer 1 Linear IPS + Layer 2 Distilled NumPy MLP
+        rng = np.random.default_rng(123)
+        X_syn = rng.uniform(0.0, 1.0, size=(600, NUM_FEATURES))
+        logits = 2.0 * X_syn[:, 0] + 2.5 * X_syn[:, 1] + 1.5 * X_syn[:, 1] * X_syn[:, 21] - 2.6
+        probs = 1.0 / (1.0 + np.exp(-logits))
+        y_syn = (rng.random(600) < probs).astype(np.int64)
+        sw_syn = np.ones(600, dtype=np.float64)
+        rk = PositionDebiasedRanker.from_priors(
+            prior_weights=wp.prior_weights_array(),
+            min_prior_ratios=wp.min_prior_ratios_array(),
+            max_prior_multiplier=wp.max_prior_multiplier,
+        )
+        rk.fit(
+            X_syn,
+            y_syn,
+            sw_syn,
+            max_blend_alpha=wp.ml_max_blend_alpha,
+            min_positives=20,
+            l2_c=1.2,
+            nonlin_blend_alpha=wp.ml_nonlin_blend_alpha,
+            nonlin_l2_alpha=wp.ml_nonlin_l2_alpha,
+            enable_nonlin=True,
+        )
+        self.assertIsNotNone(rk.nl_W1)
+        deltas = rk.score_nonlin_residuals(X_syn[:16])
+        self.assertEqual(deltas.shape, (16,))
 
         # Verify page context matrices (3x8) and dynamic lookup
         p_prod = wp.page_multipliers("product")
@@ -236,12 +263,12 @@ class TestModularWeightsProfile(unittest.TestCase):
         self.assertNotEqual(wp_custom.page_multipliers("product"), wp_custom.page_multipliers("home"))
 
         # Verify with_updated_priors preserves distilled MLP matrices
-        cloned = snap.ranker.with_updated_priors(
+        cloned = rk.with_updated_priors(
             wp.prior_weights_array(),
             wp.min_prior_ratios_array(),
             wp.max_prior_multiplier,
         )
-        self.assertIs(cloned.nl_W1, snap.ranker.nl_W1)
+        self.assertIs(cloned.nl_W1, rk.nl_W1)
         self.assertEqual(cloned.prior_weights.shape, (40,))
 
 

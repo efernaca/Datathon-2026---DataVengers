@@ -125,6 +125,27 @@ class RecommenderSnapshotV4:
     # 5.1 · perfil de pesos modular actiu
     weights_profile: Any = None
     config_override: Any = None
+    sales_rank: dict[str, int] = field(default_factory=dict)
+
+    def __setstate__(self, state: Any) -> None:
+        """Preserve compatibility with previously pickled slotted snapshots lacking newer fields."""
+        dict_state = state[0] if isinstance(state, tuple) and len(state) >= 1 and isinstance(state[0], dict) else None
+        slot_state = state[1] if isinstance(state, tuple) and len(state) >= 2 and isinstance(state[1], dict) else (state if isinstance(state, dict) else None)
+        for mapping in (dict_state, slot_state):
+            if mapping:
+                for k, v in mapping.items():
+                    object.__setattr__(self, k, v)
+        for fname, default_val in (
+            ("user_carts", {}),
+            ("user_recurrent", {}),
+            ("product_static", {}),
+            ("sales_rank", {}),
+        ):
+            if not hasattr(self, fname):
+                object.__setattr__(self, fname, dict(default_val))
+        for fname in ("weights_profile", "config_override", "ranker"):
+            if not hasattr(self, fname):
+                object.__setattr__(self, fname, None)
 
 
 class StateStore:

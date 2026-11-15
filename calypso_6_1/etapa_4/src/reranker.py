@@ -273,7 +273,12 @@ class PositionDebiasedRanker:
 
         # Layer 2: Distilled Non-Linear Residual Learner (HistGBDT teacher -> Pure NumPy float32 MLP)
         self.nl_blend_alpha = 0.0
-        if enable_nonlin and n_samples >= 500 and n_pos >= 80 and nonlin_blend_alpha > 0.0:
+        if (
+            enable_nonlin
+            and n_samples >= 200
+            and n_pos >= max(int(min_positives), 20)
+            and nonlin_blend_alpha > 0.0
+        ):
             try:
                 self._fit_nonlin_residual(
                     X_std,
@@ -307,14 +312,15 @@ class PositionDebiasedRanker:
         lin_p = 1.0 / (1.0 + np.exp(-np.clip((lin_raw - lin_mu) / lin_sd, -8.0, 8.0)))
 
         # Teacher HistGradientBoosting learns complex interactions & page/cart thresholds
+        use_early = int(np.sum(y_int > 0)) >= 60 and X_std.shape[0] >= 500
         teacher = HistGradientBoostingClassifier(
             max_depth=4,
-            max_iter=120,
+            max_iter=120 if use_early else 60,
             learning_rate=0.06,
-            min_samples_leaf=40,
+            min_samples_leaf=40 if use_early else 20,
             l2_regularization=3.0,
-            early_stopping=True,
-            validation_fraction=0.12,
+            early_stopping=use_early,
+            validation_fraction=0.12 if use_early else 0.1,
             n_iter_no_change=12,
             random_state=42,
         )

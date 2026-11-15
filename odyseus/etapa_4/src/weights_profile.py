@@ -170,6 +170,32 @@ class WeightsProfile:
     v4_recurrent_max_slots: int = 2
     v4_live_event_purchases: bool = True
 
+    # Stage 5.1f Structural & Calibrated Logit Scoring (MEDIDAS_CONVERSION + hybrid)
+    scoring_mode: str = "legacy"  # "legacy" | "calibrated" | "hybrid"
+    lift_beta: float = 0.45
+    lift_prior_pop: float = 30.0
+    fallback_live_trend_weight: float = 0.60
+    legacy_self_view_linear: bool = False
+    cal_w_rank: float = 0.69
+    cal_w_seen: float = 2.30
+    cal_w_rel: float = 0.61
+    cal_rel_cap: float = 1.0
+    cal_w_cart_active: float = 2.60
+    cal_w_cart_forgotten: float = 0.75
+    cal_w_recurrent: float = 0.45
+    cal_w_intent: float = 0.45
+    cal_w_aff: float = 0.30
+    cal_w_pcompat: float = 0.15
+    cal_w_ctx: float = 0.25
+    cal_w_cold: float = 0.45
+    cal_w_subcat: float = 0.12
+    cal_w_brand: float = 0.06
+    cal_w_live_trend: float = 0.35
+    cal_w_discount: float = 0.18
+    cal_max_rank: int = 3000
+    cal_home_rank_mult: float = 1.25
+    cal_hybrid_ml_weight: float = 0.25
+
     def prior_weights_array(self) -> np.ndarray:
         """Return 14 prior weights ordered by reranker.FEATURE_NAMES."""
         return np.array(
@@ -249,6 +275,8 @@ class WeightsProfile:
                 kwargs[name] = str(val).strip()
         if kwargs.get("tie_break_mode") not in {"conversion", "cheap", "revenue"}:
             kwargs["tie_break_mode"] = template.tie_break_mode
+        if kwargs.get("scoring_mode") not in {"legacy", "calibrated", "hybrid"}:
+            kwargs["scoring_mode"] = template.scoring_mode
         return cls(**kwargs)
 
     def save_json(self, path: str | Path) -> Path:
@@ -359,6 +387,41 @@ PRESETS: dict[str, WeightsProfile] = {
         w_global_pop=0.72,
         w_self_cvr_view=2.30,
         sales_rank_blend_weight=0.80,
+    ),
+    "calibrated_logit": replace(
+        _BASE,
+        profile_name="calibrated_logit",
+        description="Logit calibrat estil MEDIDAS_CONVERSION (-cal_w_rank·ln(puesto+1) + visto + seq + carretó) amb pool ampliat.",
+        scoring_mode="calibrated",
+        candidate_pool_size=140,
+        guaranteed_top_sellers_in_pool=40,
+        sales_rank_blend_weight=1.0,
+        fallback_live_trend_weight=0.15,
+        v4_cart_priority=False,
+        v3_bg_penalty=False,
+        v3_no_subcat_floor=True,
+        mmr_subcat_lambda_home=0.0,
+        mmr_subcat_lambda_session=0.02,
+        mmr_brand_lambda=0.01,
+    ),
+    "calibrated_hybrid": replace(
+        _BASE,
+        profile_name="calibrated_hybrid",
+        description="Fusió 5.1f de logit calibrat + afinitat/intent/bandit/EASE i diversitat suau en cues.",
+        scoring_mode="hybrid",
+        candidate_pool_size=130,
+        guaranteed_top_sellers_in_pool=35,
+        sales_rank_blend_weight=0.95,
+        fallback_live_trend_weight=0.25,
+        v4_cart_priority=False,
+        v3_bg_penalty=False,
+        v3_no_subcat_floor=True,
+        mmr_start_slot_home=5,
+        mmr_start_slot_session=7,
+        mmr_subcat_lambda_home=0.03,
+        mmr_subcat_lambda_session=0.04,
+        mmr_brand_lambda=0.02,
+        cal_hybrid_ml_weight=0.25,
     ),
 }
 
