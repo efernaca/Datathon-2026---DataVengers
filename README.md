@@ -1,37 +1,37 @@
 # Datathon FME 2026 · DataVengers (Team 32) — RawTree Challenge
 
-> Motor de recomanació en temps real per al [**RawTree Real-Time Recommendation Challenge**](datathon-fme-2026-main/README.md) · **Datathon FME 2026** (14–15 de novembre de 2026, UPC Barcelona).
+> Real-time recommendation engine for the [**RawTree Real-Time Recommendation Challenge**](datathon-fme-2026-main/README.md) · **Datathon FME 2026** (November 14–15, 2026, UPC Barcelona).
 
 ---
 
-## Resum executiu
+## Executive Summary
 
-En un comerç electrònic amb ~5.000 productes repartits en 10 categories i 90 subcategories, cada petició entrant a `shop.requests` requereix retornar una llista ordenada de **10 recomanacions** a `team_32.submissions` en **≤ 3.000 ms**, adaptant-se en directe a canvis de preu (`shop.catalog_updates`), productes nous (*cold-start*) i retroalimentació real (`team_32.feedback`).
+In an online store with ~5,000 products across 10 categories and 90 subcategories, every incoming request in `shop.requests` requires returning an ordered list of **10 product recommendations** to `team_32.submissions` within **≤ 3,000 ms**, adapting live to price changes (`shop.catalog_updates`), new items (*cold-start*), and real-time user feedback (`team_32.feedback`).
 
-**DataVengers (Team 32)** hem dissenyat i portat a producció la família de recomanadors **Calypso**, evolucionant des d'un rànquer estadístic lleuger corregit per propensitat (`calypso_2_1`) cap a una arquitectura modular recarregable en calent (`calypso_4_1_e`) i culminant en un model híbrid de doble capçal amb *Transfer Learning* (`calypso_6_2_b`) capaç d'inferir en mil·lisegons i sostenir el flux de producció sota un SLA estricte.
+**DataVengers (Team 32)** designed and deployed the **Calypso** family of recommenders, evolving from a lightweight propensity-debiased statistical ranker (`calypso_2_1`) to a modular, hot-reloadable business-rule architecture (`calypso_4_1_e`), and culminating in a Dual-Head hybrid model with *Transfer Learning* (`calypso_6_2_b`) capable of millisecond-scale inference under strict production SLAs.
 
 ---
 
-## Arquitectura del sistema
+## System Architecture
 
 ```mermaid
 flowchart LR
-    subgraph RawTree["Stream RawTree (ClickHouse)"]
-        H["shop.history_sessions / events\n(~2M sessions · ~12M esdeveniments)"]
-        Q["shop.requests + shop.events\n+ catalog_updates (cua fresca)"]
-        F["team_32.feedback\n(clics i compres reals)"]
+    subgraph RawTree["RawTree Stream (ClickHouse)"]
+        H["shop.history_sessions / events\n(~2M sessions · ~12M events)"]
+        Q["shop.requests + shop.events\n+ catalog_updates (fresh queue)"]
+        F["team_32.feedback\n(live clicks & purchases)"]
     end
 
-    subgraph Bg["BackgroundUpdater (asíncron · cada ~10 s)"]
-        S["Snapshots atòmics en disc\nstatic_history_v4.pkl / snapshot_v4_latest.pkl"]
-        T["Models multicapa\nSeq · Co-visit · EASE · SVD 32d · TF-IDF\n+ Teacher GBDT → MLP (80,40) + Ridge"]
+    subgraph Bg["BackgroundUpdater (async · every ~10 s)"]
+        S["Atomic disk snapshots\nstatic_history_v4.pkl / snapshot_v4_latest.pkl"]
+        T["Multi-layer models\nSeq · Co-visit · EASE · SVD 32d · TF-IDF\n+ Teacher GBDT → MLP (80,40) + Ridge"]
         P["weights_profile.json\n(hot-reload)"]
     end
 
-    subgraph Fast["FastLoop (inferència en temps real)"]
-        C["Recuperació multicapa\n+ Cold-Start bidireccional"]
-        R["Capçal Slot-1 (64 features)\n+ IPS / UCB / MMR (slots 2–10)\n+ Regles de negoci i guardrails"]
-        A["Enviament asíncron + deduplicació _seen"]
+    subgraph Fast["FastLoop (real-time inference)"]
+        C["Multi-layer retrieval\n+ Bidirectional Cold-Start"]
+        R["Slot-1 Head (64 features)\n+ IPS / UCB / MMR (slots 2–10)\n+ Business rules & guardrails"]
+        A["Async submission + post-push _seen dedup"]
     end
 
     H --> S --> T
@@ -42,114 +42,114 @@ flowchart LR
     Q --> C --> R --> A -->|"team_32.submissions (< 3 s)"| RawTree
 ```
 
-### Pilars tècnics implementats
+### Core Engineering Pillars
 
-1. **Blindatge operatiu i compliment d'SLA (`< 3.000 ms`)**
-   - **Arrencada instantània (`< 0,4 s`)**: càrrega atòmica des de disc de l'historial estàtic (`static_history_v4.pkl`) i el darrer snapshot (`snapshot_v4_latest.pkl`), evitant recalcular ~12M d'esdeveniments en cada reinici.
-   - **Desacoblament `FastLoop` / `BackgroundUpdater`**: la inferència consulta únicament cua fresca recent mentre el fil en segon pla actualitza estadístiques en viu i reentrena sense bloquejar el servei.
-   - **Escriptura asíncrona i deduplicació post-push**: l'enviament a `team_32.submissions` no frena la següent petició i marca `request_id` a `_seen` només després de confirmar l'entrega.
+1. **Production Hardening & SLA Compliance (`< 3,000 ms`)**
+   - **Instant startup (`< 0.4 s`)**: atomic disk loading of static history (`static_history_v4.pkl`) and the latest live snapshot (`snapshot_v4_latest.pkl`), avoiding recomputing ~12M historical events on every restart.
+   - **`FastLoop` / `BackgroundUpdater` decoupling**: serving queries pull strictly from the recent fresh queue while a background thread incrementally updates live statistics and retrains weights without blocking inference.
+   - **Asynchronous submission & post-push deduplication**: writes to `team_32.submissions` never stall subsequent requests, and `request_id` is added to `_seen` only after confirmed delivery.
 
-2. **Recuperació híbrida multicapa i *Cold-Start* bidireccional**
-   - Combina transicions seqüencials (`P(j|i)`), co-visitació, factorització **EASE**, **SVD** (32 dimensions), popularitat contextual (`device × region × page`), afinitat d'usuari i tendència en directe.
-   - **Cold-Start**: connecta productes nous sense historial mitjançant similitud TF-IDF + SVD (*forward cold* i *reverse graft* cap a ítems amb trànsit) i compatibilitat de categoria, subcategoria, marca i preu.
+2. **Multi-Layer Hybrid Retrieval & Bidirectional Cold-Start**
+   - Combines first-order sequential transitions (`P(j|i)`), co-visitation, **EASE** item-item similarity, 32-dimensional **SVD**, contextual popularity (`device × region × page`), user affinity, and live trends.
+   - **Cold-Start**: bridges newly introduced items without interaction history via TF-IDF + SVD similarity (*forward cold* and *reverse graft* onto active catalog items) alongside category, subcategory, brand, and price compatibility.
 
-3. **Arquitectura modular i regles de negoci (`weights_profile.json`)**
-   - Separació completa de pesos, llindars i paràmetres en un perfil JSON recarregable en calent sense reiniciar el procés ni perdre peticions, gestionat per CLI mitjançant `tuner.py`.
-   - Segmentació en 5 perfils d'usuari, detecció de **carret actiu / carret oblidat**, **compres recurrents** i calibració de recompensa compra vs. clic per protegir el `DCG@10`.
+3. **Modular Architecture & Business Rules (`weights_profile.json`)**
+   - Full decoupling of scoring weights, thresholds, and rules into a hot-reloadable JSON profile managed via `tuner.py`, enabling live tuning without process restarts or dropped requests.
+   - Includes 5-segment user profiling, **active / forgotten cart** detection, **repeat-purchase** signals, and click-vs-purchase reward calibration to protect `DCG@10`.
 
-4. **Doble capçal *Slot-1 Precision* + *Transfer Learning* (`calypso_6_2_b`)**
-   - **Capçal dedicat al Slot 1 (`64` features)**: optimitzat específicament per a conversió al primer lloc del carrusel amb regularització de risc seqüencial, separat del rànquing IPS/MMR de les posicions 2–10.
-   - **Destil·lació Teacher → Student i *Transfer Learning* en 2 fases**: `HistGradientBoostingClassifier` destil·lat a una xarxa **MLP `(80, 40)` en NumPy pur**, amb adaptació *Sintètic → Real* mitjançant *Ridge* sobre la capa oculta amb `team_32.feedback` real i senyal de **Live-CVR Velocity**.
+4. **Dual-Head *Slot-1 Precision* & *Transfer Learning* (`calypso_6_2_b`)**
+   - **Dedicated Slot-1 Head (`64` features)**: optimized specifically for conversion at carousel position 1 with sequential-overestimation regularization, decoupled from IPS/MMR ranking in slots 2–10.
+   - **Teacher → Student Distillation & 2-Phase *Transfer Learning***: `HistGradientBoostingClassifier` distilled into a pure-NumPy **`(80, 40)` MLP**, followed by *Synthetic → Real* hidden-layer Ridge adaptation on `team_32.feedback` and a **Live-CVR Velocity** signal.
 
 ---
 
-## Estructura del repositori
+## Repository Structure
 
-El repositori s'ha depurat mitjançant [`.gitignore`](.gitignore) per conservar exclusivament l'enunciat del repte i les tres fites representatives de l'evolució del sistema:
+The repository was cleaned via [`.gitignore`](.gitignore) to retain only the official challenge specification and the three milestone versions of the recommender:
 
-| Ruta | Descripció |
+| Path | Description |
 |---|---|
-| [`datathon-fme-2026-main/`](datathon-fme-2026-main/) | Documentació oficial del repte, esquema de taules RawTree, *starter code* i notebook d'avaluació base. |
-| [`calypso_2_1/`](calypso_2_1/) | **Fita base estable (`calypso-2.1`)**: motor estadístic lleuger encapsulat en 4 etapes amb IPS ranker, bandit UCB, MMR i blindatge SLA. |
-| [`calypso_4_1_e/`](calypso_4_1_e/) | **Fita modular (`calypso-4.1e`)**: desacoblament total de pesos a [`weights_profile.json`](calypso_4_1_e/weights_profile.json), recàrrega en calent, [`tuner.py`](calypso_4_1_e/tuner.py) i regles de negoci. |
-| [`calypso_6_2_b/`](calypso_6_2_b/) | **Model final (`calypso-6.2b`)**: doble capçal *Slot-1 Precision*, 64 features, destil·lació MLP `(80, 40)` + *Transfer Ridge*, *Live-CVR Velocity* i vectorització FastLoop. |
-| [`README.md`](README.md) · [`.gitignore`](.gitignore) | Documentació general del projecte i política d'exclusió d'artefactes temporals, caches i experiments intermedis. |
+| [`datathon-fme-2026-main/`](datathon-fme-2026-main/) | Official challenge brief, RawTree schema documentation, starter code, and baseline evaluation notebook. |
+| [`calypso_2_1/`](calypso_2_1/) | **Stable Baseline (`calypso-2.1`)**: lightweight 4-stage statistical engine with IPS ranker, UCB bandit, MMR, and SLA disk caching. |
+| [`calypso_4_1_e/`](calypso_4_1_e/) | **Modular Milestone (`calypso-4.1e`)**: full weight decoupling in [`weights_profile.json`](calypso_4_1_e/weights_profile.json), hot-reload, [`tuner.py`](calypso_4_1_e/tuner.py), and v4 business rules. |
+| [`calypso_6_2_b/`](calypso_6_2_b/) | **Final Production Model (`calypso-6.2b`)**: Dual-Head *Slot-1 Precision*, 64 features, `(80, 40)` MLP distillation + Ridge transfer, Live-CVR Velocity, and FastLoop vectorization. |
+| [`README.md`](README.md) · [`.gitignore`](.gitignore) | Project documentation and exclusion rules for intermediate experiments, caches, logs, and local scratch files. |
 
 ---
 
-## Comparativa dels models conservats
+## Model Comparison
 
-| Dimensió | `calypso_2_1` (`calypso-2.1`) | `calypso_4_1_e` (`calypso-4.1e`) | `calypso_6_2_b` (`calypso-6.2b`) |
+| Dimension | `calypso_2_1` (`calypso-2.1`) | `calypso_4_1_e` (`calypso-4.1e`) | `calypso_6_2_b` (`calypso-6.2b`) |
 |---|---|---|---|
-| **Rol evolutiu** | Baseline de producció estable | Arquitectura modular orientada a conversió | Model final de producció |
-| **Motor de scoring** | Model lineal (14 features) + IPS logístic + Bandit UCB + MMR | Scoring modular per 5 segments d'usuari + IPS amb pesos signats | **Dual-Head**: Slot-1 (64 features, MLP `(80, 40)` + *Transfer Ridge*) + rànquing IPS/MMR (slots 2–10) |
-| **Senyals principals** | Seqüència 1r ordre, CVR propi, afinitat, popularitat contextual, cold-start TF-IDF/SVD | Base `2.1` + carret actiu/oblidat, compres recurrents, asimetria de preu i control de `DCG@10` | Base `4.1.e` + `EASE`, SVD 32d, `hop2`, co-visitació, `cross_subcat_lift`, consens multicapa i *Live-CVR Velocity* |
-| **Configuració i CLI** | `serve.py`, `monitor.py`, `eval.py` | `+` [`weights_profile.json`](calypso_4_1_e/weights_profile.json) i [`tuner.py`](calypso_4_1_e/tuner.py) (hot-reload) | `+` [`weights_profile.json`](calypso_6_2_b/weights_profile.json) ampliat, presets multi-objectiu i [`tuner.py`](calypso_6_2_b/tuner.py) |
+| **Evolutionary Role** | Stable production baseline | Modular conversion-oriented architecture | Final production model |
+| **Scoring Engine** | Linear scorer (14 features) + logistic IPS + UCB bandit + MMR | 5-segment modular scoring + signed-weight IPS | **Dual-Head**: Slot-1 (64 features, `(80, 40)` MLP + Ridge transfer) + IPS/MMR ranking (slots 2–10) |
+| **Key Signals** | 1st-order sequences, item CVR, user affinity, contextual popularity, TF-IDF/SVD cold-start | `2.1` base + active/forgotten cart, repeat purchases, price asymmetry, `DCG@10` protection | `4.1.e` base + `EASE`, SVD 32d, `hop2`, co-visitation, `cross_subcat_lift`, multi-channel consensus, Live-CVR Velocity |
+| **Configuration & CLI** | `serve.py`, `monitor.py`, `eval.py` | `+` [`weights_profile.json`](calypso_4_1_e/weights_profile.json) & [`tuner.py`](calypso_4_1_e/tuner.py) (hot-reload) | `+` extended [`weights_profile.json`](calypso_6_2_b/weights_profile.json), multi-objective presets & [`tuner.py`](calypso_6_2_b/tuner.py) |
 
 ---
 
-## Resultats empírics
+## Empirical Results
 
-> Les taules següents separen explícitament cada protocol d'avaluació (ablacions offline a 5 llavors, benchmark estratificat per presets i telemetria en producció real) per garantir rigor comparatiu.
+> Metrics below are grouped strictly by evaluation protocol (5-seed offline ablations, stratified preset benchmark, and live production telemetry) to avoid cross-benchmark distortion.
 
-### 1. Ablacions offline a 5 llavors (`calypso_2_1` vs `calypso_4_1 / 4.1_e`)
+### 1. 5-Seed Offline Ablations (`calypso_2_1` vs. `calypso_4_1 / 4.1_e`)
 
-Mitjana sobre 5 llavors procedent de [`ablation_results.csv`](calypso_4_1_e/etapa_4/ablation_results.csv) i [`ablation_v4_results.csv`](calypso_4_1_e/etapa_4/ablation_v4_results.csv):
+5-seed averages recorded in [`ablation_results.csv`](calypso_4_1_e/etapa_4/ablation_results.csv) and [`ablation_v4_results.csv`](calypso_4_1_e/etapa_4/ablation_v4_results.csv):
 
-| Configuració avaluada | Font | `hit_buy` | `dcg_buy` | `cold_item` | Conclusió clau |
+| Evaluated Configuration | Source | `hit_buy` | `dcg_buy` | `cold_item` | Key Takeaway |
 |---|---|---:|---:|---:|---|
-| `A_2.1_equivalente` | `ablation_results.csv` | `77,25%` | `0,4749` | `85,87%` | Baseline sòlid de la família `2.1` |
-| `2.1 + penaliz_fondo` (`3.1b`) | `ablation_results.csv` | `79,04%` | `0,4835` | `85,76%` | Penalitzar fons repetit millora el hit i el DCG |
-| `B_4.1_completo` (`precio_asc=True`) | `ablation_v4_results.csv` | `78,72%` | `0,3941` | `82,45%` | Ordenar estrictament per preu degrada `-18,8%` el `dcg_buy` |
-| `4.1 - precio_asc` (base `4.1.e conversion_first`) | `ablation_v4_results.csv` | `78,72%` | `0,4799` | `82,45%` | Conserva el `hit_buy` de `4.1` i recupera el `dcg_buy` |
+| `A_2.1_equivalente` | `ablation_results.csv` | `77.25%` | `0.4749` | `85.87%` | Strong baseline for the `2.1` family |
+| `2.1 + penaliz_fondo` (`3.1b`) | `ablation_results.csv` | `79.04%` | `0.4835` | `85.76%` | Penalizing repeated bottom items lifts both hit and DCG |
+| `B_4.1_completo` (`precio_asc=True`) | `ablation_v4_results.csv` | `78.72%` | `0.3941` | `82.45%` | Strict ascending price sorting drops `dcg_buy` by `-18.8%` |
+| `4.1 - precio_asc` (`4.1.e conversion_first` base) | `ablation_v4_results.csv` | `78.72%` | `0.4799` | `82.45%` | Preserves `4.1` conversion while recovering `dcg_buy` |
 
-### 2. Benchmark offline estratificat per presets (`calypso_6_2_b`, 1.200 sessions)
+### 2. Stratified Offline Preset Benchmark (`calypso_6_2_b`, 1,200 Sessions)
 
-Comparativa sobre el banc estratificat de 1.200 sessions de `calypso_6_2_b` (càlcul de motor al voltant d'`1 ms/req`):
+Comparative evaluation on the 1,200-session stratified benchmark of `calypso_6_2_b` (~`1 ms/req` pure engine scoring latency):
 
-| Preset | Objectiu | `ALL_hit_buy` | `ALL_dcg_buy` | `WARM_hit_buy` | `COLD_hit_buy` | `COLD_item_hit` | `SNIPS_s1` | Latència motor |
+| Preset | Objective | `ALL_hit_buy` | `ALL_dcg_buy` | `WARM_hit_buy` | `COLD_hit_buy` | `COLD_item_hit` | `SNIPS_s1` | Engine Latency |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `calibrated_m3` | `0,7223` | `75,05%` | `0,4485` | `75,23%` | `74,64%` | `80,49%` | `0,2422` | `1,076 ms` |
-| `product_profile_focus` | `0,6922` | `70,32%` | `0,4191` | `65,44%` | `81,88%` | `93,90%` | `0,2344` | `0,807 ms` |
-| `conversion_first` (actiu) | `0,6901` | `69,25%` | `0,4282` | `70,03%` | `67,39%` | `69,51%` | `0,2266` | `0,818 ms` |
+| `calibrated_m3` | `0.7223` | `75.05%` | `0.4485` | `75.23%` | `74.64%` | `80.49%` | `0.2422` | `1.076 ms` |
+| `product_profile_focus` | `0.6922` | `70.32%` | `0.4191` | `65.44%` | `81.88%` | `93.90%` | `0.2344` | `0.807 ms` |
+| `conversion_first` (active) | `0.6901` | `69.25%` | `0.4282` | `70.03%` | `67.39%` | `69.51%` | `0.2266` | `0.818 ms` |
 
-### 3. Telemetria observada en producció real (`calypso-6.2b`)
+### 3. Live Production Telemetry (`calypso-6.2b`)
 
-Mètriques directes del panell en viu de RawTree durant l'execució de `calypso-6.2b`:
+Observed directly on the RawTree live leaderboard panel while serving `calypso-6.2b`:
 
-| Model en directe | Peticions respostes | `On-Time` (`≤ 3 s`) | Latència `p50 / p95` | `CTR / CVR` | `EUR / req` |
+| Live Model Version | Requests Served | `On-Time` (`≤ 3 s`) | Latency `p50 / p95` | `CTR / CVR` | `EUR / req` |
 |---|---:|---:|---:|---:|---:|
-| `calypso-6.2b` | `534 (99,4%)` | `96,82%` | `1199 / 2274 ms` | `3,37% / 1,12%` | `0,2976 €` |
+| `calypso-6.2b` | `534 (99.4%)` | `96.82%` | `1199 / 2274 ms` | `3.37% / 1.12%` | `0.2976 €` |
 
 ---
 
-## Posada en marxa i verificació
+## Setup & Usage
 
-### Requisits previs
+### Prerequisites
 
-1. Python 3.10+ amb les dependències de l'etapa corresponent (`etapa_4/requirements.txt`).
-2. Configurar les credencials d'accés a RawTree en un fitxer `.env` a partir de [`datathon-fme-2026-main/.env.example`](datathon-fme-2026-main/.env.example) per a execucions en viu.
+1. Python 3.10+ with the dependencies listed in `etapa_4/requirements.txt` for the chosen model.
+2. Configure RawTree credentials in a `.env` file based on [`datathon-fme-2026-main/.env.example`](datathon-fme-2026-main/.env.example) before running against the live stream.
 
-### Ordres principals (exemple sobre `calypso_6_2_b` / `calypso_4_1_e`)
+### Key Commands
 
 ```powershell
-# Verificació d'integritat local del model (self-check)
+# Local integrity check (self-check)
 python calypso_6_2_b/serve.py --self-check
 python calypso_4_1_e/serve.py --self-check
 python calypso_2_1/serve.py --self-check
 
-# Simulació local i avaluació/gestió de presets
+# Local dry-run & preset inspection/evaluation
 python calypso_6_2_b/serve.py --dry-run
 python calypso_6_2_b/tuner.py --eval-presets
 python calypso_4_1_e/tuner.py --list-presets
 
-# Execució en producció amb supervisió (watchdog) i monitoratge
+# Live serving with watchdog supervision & monitoring
 python calypso_6_2_b/serve.py --watchdog
 python calypso_6_2_b/monitor.py
 ```
 
 ---
 
-## Equip · DataVengers (Team 32)
+## Team · DataVengers (Team 32)
 
-Projecte desenvolupat per l'equip **DataVengers (Team 32)** per al repte **RawTree** a la **Datathon FME 2026** (Facultat de Matemàtiques i Estadística, UPC).
+Built by **DataVengers (Team 32)** for the **RawTree Challenge** at **Datathon FME 2026** (Facultat de Matemàtiques i Estadística, UPC).
